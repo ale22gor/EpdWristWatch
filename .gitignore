@@ -1,5 +1,5 @@
-.devcontainer
-.vscode
+.devcontainer/
+.vscode/
 build/
 components/
 managed_components/

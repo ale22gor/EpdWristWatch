@@ -4,7 +4,7 @@ extern const char *TAG;
 weather localWeather;
 
 
-static esp_err_t _http_event_handle(esp_http_client_event_t *evt)
+esp_err_t _http_event_handle(esp_http_client_event_t *evt)
 {
   static char *output_buffer; // Buffer to store response of http request from event handler
   static int output_len;      // Stores number of bytes read

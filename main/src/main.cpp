@@ -60,14 +60,16 @@ extern "C" void app_main()
   Serial.setDebugOutput(true);
 
   // Set timezone
-  setenv("TZ", "MSK-3", 1);
+  setenv("TZ", "MSK-2", 1);
   tzset();
 
   vTaskDelay(250);
 
+  ESP_LOGI(TAG, "Initialize Display");
+
   initDisplay();
   vTaskDelay(1000);
-  
+  ESP_LOGI(TAG, "Initialize NVS");
 
   // Initialize NVS
   esp_err_t ret = nvs_flash_init();
@@ -81,14 +83,19 @@ extern "C" void app_main()
     ESP_ERROR_CHECK(nvs_flash_init());
   }
 
+  ESP_LOGI(TAG, "Initialize TCP/IP");
+
   /* Initialize TCP/IP */
   ESP_ERROR_CHECK(esp_netif_init());
+  ESP_LOGI(TAG, "Initialize the event loop");
 
   /* Initialize the event loop */
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
   ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-  if (wifi_init_sta())
+  wifi_init_sta();
+
+  if (wifi_update_prov_and_connect())
   {
     InitNtpTime();
     GET_Request();
@@ -162,15 +169,17 @@ void TaskUpdateTime(void *parameter)
     time_t now = time(nullptr);
     localtime_r(&now, &timeinfo);
 
-    if (timeinfo.tm_hour == 4 && timeinfo.tm_min == 30)
-    {
-      if (wifi_reconnect())
-      {
-        UpdateNtpTime();
-        GET_Request();
-      }
-      wifi_disconnect();
-    }
+    /*
+        if (timeinfo.tm_hour == 4 && timeinfo.tm_min == 30)
+        {
+          if (wifi_reconnect())
+          {
+            UpdateNtpTime();
+            GET_Request();
+          }
+          wifi_disconnect();
+        }
+        */
     if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0)
     {
       printDate(0, 70);

@@ -4,6 +4,8 @@
 #include "esp_http_client.h"
 #include "esp_tls.h"
 #include "esp_log.h"
+#include "esp_smartconfig.h"
+
 
 #include "ArduinoJson.h"
 #include <sys/param.h>
@@ -16,7 +18,7 @@
 #define MAX_HTTP_OUTPUT_BUFFER 4096
 
 void GET_Request();
-static esp_err_t _http_event_handle(esp_http_client_event_t *evt);
+esp_err_t _http_event_handle(esp_http_client_event_t *evt);
 
 struct weatherData
 {

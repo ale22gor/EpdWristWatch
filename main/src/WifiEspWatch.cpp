@@ -128,8 +128,8 @@ void wifi_prov_event_handler(void *arg, esp_event_base_t event_base,
     }
     break;
     default:
-    }
     break;
+    }
   }
 }
 

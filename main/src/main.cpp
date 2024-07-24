@@ -1,16 +1,18 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
+#include "esp_pm.h"
+
+#include <ctime>
+#include "driver/gpio.h"
 
 #include "WifiEspWatch.h"
 #include "HttpEspWatch.h"
 #include "SntpEspWatch.h"
 #include "BatteryEspWatch.h"
 #include "PrintEspWatch.h"
-
-#include <ctime>
-#include "driver/gpio.h"
 
 #define PIN_MOTOR 4
 #define PIN_KEY 35
@@ -25,12 +27,11 @@ const char *TAG = "epd watch";
 void UpdateTimeCallback(void *parameter);
 void SyncDataCallback(void *parameter);
 void TaskUpdateTime(void *pvParameters);
-void Task_SyncData(void *pvParameters);
-void Task_Sleep(void *pvParameters);
 
 static EventGroupHandle_t minute_event_group;
-static EventGroupHandle_t syncData_event_group;
-static EventGroupHandle_t mainApp_event_group;
+
+static QueueHandle_t button_queue = NULL;
+esp_timer_handle_t buttonTimer;
 
 const int time_Update = BIT0;
 
@@ -39,6 +40,61 @@ const int time_Update = BIT0;
 
 #define TIME_UPDATED_BIT BIT0
 #define DATA_UPDATED_BIT BIT1
+
+bool dataUpdated = false;
+
+void ButtonTimerCallback(void *parameter)
+{
+  // ESP_LOGI("ISR", "Button is enabled");
+
+  // Включаем прерывания на кнопке
+  gpio_intr_enable(GPIO_NUM_35);
+}
+
+// Обработчик прерывания по нажатию кнопки
+static void IRAM_ATTR isrButtonPress(void *arg)
+{
+  gpio_intr_disable(GPIO_NUM_35);
+
+  // Переменные для переключения контекста
+  BaseType_t xHigherPriorityTaskWoken, xResult;
+  xHigherPriorityTaskWoken = pdFALSE;
+  // Поскольку мы "подписались" только на GPIO_INTR_NEGEDGE, мы уверены что это именно момент нажатия на кнопку
+  bool pressed = true;
+  // Отправляем в очередь задачи событие "кнопка нажата"
+  xResult = xQueueSendFromISR(button_queue, &pressed, &xHigherPriorityTaskWoken);
+  esp_timer_start_once(buttonTimer, 2000000);
+
+  // Если высокоприоритетная задача ждет этого события, переключаем управление
+  // if (xResult == pdPASS)
+  // {
+  //  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  //};
+}
+
+// Функция задачи светодиода
+void TaskWifiUpdateData(void *pvParameters)
+{
+
+  while (1)
+  {
+    bool button_pressed;
+    // Ждем события нажатия кнопки в очереди
+    if (xQueueReceive(button_queue, &button_pressed, portMAX_DELAY))
+    {
+      ESP_LOGI("ISR", "Button is pressed");
+      // Переключаем светодиод
+      if (wifi_update_prov_and_connect())
+      {
+        InitNtpTime();
+        GET_Request();
+        dataUpdated = true;
+      }
+      wifi_disconnect();
+    };
+  };
+  vTaskDelete(NULL);
+}
 
 extern "C" void app_main()
 {
@@ -51,10 +107,6 @@ extern "C" void app_main()
   gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
   gpio_set_pull_mode(GPIO_NUM_5, GPIO_FLOATING);
   gpio_set_level(GPIO_NUM_5, HIGH);
-
-  gpio_reset_pin(GPIO_NUM_35);
-  gpio_set_direction(GPIO_NUM_35, GPIO_MODE_INPUT);
-  gpio_set_pull_mode(GPIO_NUM_35, GPIO_PULLUP_ONLY);
 
   vTaskDelay(250);
   Serial.setDebugOutput(true);
@@ -95,12 +147,46 @@ extern "C" void app_main()
   ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
   wifi_init_sta();
 
-  if (wifi_update_prov_and_connect())
+  // Создаем входящую очередь задачи
+  button_queue = xQueueCreate(32, sizeof(bool));
+
+  xTaskCreate(&TaskWifiUpdateData, "Task_WifiUpdateData", 8192, NULL, 3, NULL);
+
+  gpio_reset_pin(GPIO_NUM_35);
+  // gpio_pad_select_gpio(GPIO_NUM_35);
+  gpio_set_direction(GPIO_NUM_35, GPIO_MODE_INPUT);
+  gpio_set_pull_mode(GPIO_NUM_35, GPIO_PULLUP_ONLY);
+
+  esp_timer_create_args_t configButtonTimer = {
+      .callback = ButtonTimerCallback,
+      .arg = NULL,
+      .dispatch_method = ESP_TIMER_TASK,
+      .name = "button_Timer",
+      .skip_unhandled_events = true,
+  };
+
+  esp_timer_create(&configButtonTimer, &buttonTimer);
+
+  esp_err_t err = gpio_install_isr_service(0);
+  if (err == ESP_ERR_INVALID_STATE)
   {
-    InitNtpTime();
-    GET_Request();
-  }
-  wifi_disconnect();
+    ESP_LOGW("ISR", "GPIO isr service already installed");
+  };
+
+  // Регистрируем обработчик прерывания на нажатие кнопки
+  gpio_isr_handler_add(GPIO_NUM_35, isrButtonPress, NULL);
+
+  // Устанавливаем тип события для генерации прерывания - по низкому уровню
+  gpio_set_intr_type(GPIO_NUM_35, GPIO_INTR_NEGEDGE);
+
+  // Разрешаем использование прерываний
+  gpio_intr_enable(GPIO_NUM_35);
+
+  esp_pm_config_t pm_config = {
+      .max_freq_mhz = 160,
+      .min_freq_mhz = 80,
+      .light_sleep_enable = true};
+  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
 
   ESP_LOGI(TAG, "setup(): ready");
 
@@ -109,9 +195,9 @@ extern "C" void app_main()
   time_t now = time(nullptr);
   localtime_r(&now, &timeinfo);
   initDisplayText();
+  hibernateDisplay();
 
   esp_timer_handle_t minuteClockTimer;
-  // esp_timer_handle_t SyncDataTimer;
 
   esp_timer_create_args_t configMinuteClockTimer = {
       .callback = UpdateTimeCallback,
@@ -120,115 +206,65 @@ extern "C" void app_main()
       .name = "minute_Timer",
       .skip_unhandled_events = true,
   };
-  /*
-   esp_timer_create_args_t configSyncDataTimer = {
-       .callback = SyncDataCallback,
-       .arg = NULL,
-       .dispatch_method = ESP_TIMER_TASK,
-       .name = "syncData_Timer",
-       .skip_unhandled_events = true,
-   };
- */
-  minute_event_group = xEventGroupCreate();
-  // syncData_event_group = xEventGroupCreate();
-  // mainApp_event_group = xEventGroupCreate();
 
-  // xEventGroupSetBits(mainApp_event_group, DATA_UPDATED_BIT);
+  minute_event_group = xEventGroupCreate();
+
   esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
-  // esp_timer_create(&configSyncDataTimer, &SyncDataTimer);
 
   xTaskCreate(&TaskUpdateTime, "Task_UpdateTime", 8192, NULL, 2, NULL);
-  //  xTaskCreate(&Task_Sleep, "Task_Sleep", 1024, NULL, 2, NULL);
-  //  xTaskCreate(&Task_SyncData, "Task_SyncData", 8192, NULL, 3, NULL);
   esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
-  // esp_timer_start_periodic(SyncDataTimer, 60 * 1000 * 1000); // 10800000000L);
-
-  esp_sleep_enable_timer_wakeup(55000000);
-
-  esp_light_sleep_start();
 }
 
 void UpdateTimeCallback(void *parameter)
 {
   xEventGroupSetBits(minute_event_group, MINUTE_UPDATE_BIT);
 }
-void SyncDataCallback(void *parameter)
-{
-  // xEventGroupClearBits(mainApp_event_group, DATA_UPDATED_BIT);
-  xEventGroupSetBits(syncData_event_group, SYNC_DATA_BIT);
-}
 
 void TaskUpdateTime(void *parameter)
 {
 
+  esp_sleep_enable_gpio_wakeup();
+
+  gpio_wakeup_enable(GPIO_NUM_35, GPIO_INTR_LOW_LEVEL);
+
   while (true)
   {
-    xEventGroupWaitBits(minute_event_group, MINUTE_UPDATE_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
     ESP_LOGI(TAG, "TaskUpdateTime");
+    xEventGroupWaitBits(minute_event_group, MINUTE_UPDATE_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
 
     time_t now = time(nullptr);
     localtime_r(&now, &timeinfo);
 
-    /*
-        if (timeinfo.tm_hour == 4 && timeinfo.tm_min == 30)
-        {
-          if (wifi_reconnect())
-          {
-            UpdateNtpTime();
-            GET_Request();
-          }
-          wifi_disconnect();
-        }
-        */
-    if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0)
+    if (dataUpdated)
     {
-      printDate(0, 70);
+      initDisplayText();
+      dataUpdated = false;
     }
-    printHour(7, 0);
-
-    if (timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0)
-      printWeather(20, 5);
-
-    if (timeinfo.tm_min % 5 == 0)
+    else
     {
+      if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0)
+      {
+        printDate(0, 70);
+      }
+      printHour(7, 0);
 
-      powerInit();
-      int voltage = powerMeasure();
-      printPower(voltage, 130, 150);
-      stopPowerMeasure();
+      if (timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0)
+        printWeather(20, 5);
+
+      if (timeinfo.tm_min % 5 == 0)
+      {
+
+        powerInit();
+        int voltage = powerMeasure();
+        printPower(voltage, 130, 150);
+        stopPowerMeasure();
+      }
     }
-
     hibernateDisplay();
     vTaskDelay(250);
 
-    esp_sleep_enable_timer_wakeup(55000000);
+    // esp_sleep_enable_timer_wakeup(55000000);
 
-    esp_light_sleep_start();
-  }
-}
-void Task_SyncData(void *parameter)
-{
-  while (true)
-  {
-
-    xEventGroupWaitBits(syncData_event_group, SYNC_DATA_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
-    ESP_LOGI(TAG, "Task_SyncData");
-
-    // wifi_reconect();
-    vTaskDelay(250);
-
-    // xEventGroupSetBits(mainApp_event_group, DATA_UPDATED_BIT);
-  }
-}
-void Task_Sleep(void *parameter)
-{
-  while (true)
-  {
-    xEventGroupWaitBits(mainApp_event_group, DATA_UPDATED_BIT | TIME_UPDATED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
-    xEventGroupClearBits(mainApp_event_group, TIME_UPDATED_BIT);
-
-    esp_sleep_enable_timer_wakeup(55000000);
-
-    esp_light_sleep_start();
+    // esp_light_sleep_start();
   }
 }

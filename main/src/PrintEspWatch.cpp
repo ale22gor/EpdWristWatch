@@ -123,7 +123,7 @@ void printWeather(uint16_t x, uint16_t y)
 void initDisplayText()
 {
 
-    display.setRotation(2);
+    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     // display.setTextWrap(false);
@@ -229,7 +229,6 @@ void initDisplayText()
 
     // update display
     display.display();
-    display.hibernate();
 }
 
 void initDisplay()
@@ -241,9 +240,23 @@ void initDisplay()
     display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.display();
+    display.setRotation(2);
 }
 
 void hibernateDisplay()
 {
     display.hibernate();
+}
+void displayMenu()
+{
+    display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+
+    display.setTextSize(3);
+    display.setCursor(10, 5);
+    display.println("Prov and Update Time");
+    display.println("Update Time");
+    display.println("Weather Data");
+    display.display();
 }

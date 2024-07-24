@@ -23,5 +23,6 @@ void printWeather(uint16_t x, uint16_t y);
 void initDisplayText();
 void initDisplay();
 void hibernateDisplay();
+void displayMenu();
 
 #endif /* PRINTESPWATCH_H */

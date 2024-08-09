@@ -41,7 +41,35 @@ const int time_Update = BIT0;
 #define TIME_UPDATED_BIT BIT0
 #define DATA_UPDATED_BIT BIT1
 
+#define MAIN_SCR_PRINT BIT0
+#define MINUTE_PRINT_UPD_MAIN_SCR BIT1
+#define MENU_PRINT BIT2
+#define MENU_PRINT_NEXT BIT3
+
+/* Stores the handle of the task that will be notified when the
+   transmission is complete. */
+static TaskHandle_t xTskUpdMainScrToNotify = NULL, xTskMenuToNotify = NULL;
+
+/* The index within the target task's array of task notifications
+   to use. */
+const UBaseType_t xArrayMinuteUpdIndex = 0;
+const UBaseType_t xArrayMenuScrIndex = 2;
+
 bool dataUpdated = false;
+enum menuState
+{
+  ProvAndUpdate,
+  Update,
+  Weather,
+  Back
+};
+menuState currMenuState = ProvAndUpdate;
+enum screenSTate
+{
+  MainScreen,
+  MenuScreen
+};
+screenSTate currScreenState = MainScreen;
 
 void ButtonTimerCallback(void *parameter)
 {
@@ -55,21 +83,24 @@ void ButtonTimerCallback(void *parameter)
 static void IRAM_ATTR isrButtonPress(void *arg)
 {
   gpio_intr_disable(GPIO_NUM_35);
+  esp_timer_start_once(buttonTimer, 2000000);
 
   // Переменные для переключения контекста
-  BaseType_t xHigherPriorityTaskWoken, xResult;
-  xHigherPriorityTaskWoken = pdFALSE;
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
   // Поскольку мы "подписались" только на GPIO_INTR_NEGEDGE, мы уверены что это именно момент нажатия на кнопку
-  bool pressed = true;
+  // bool pressed = true;
   // Отправляем в очередь задачи событие "кнопка нажата"
-  xResult = xQueueSendFromISR(button_queue, &pressed, &xHigherPriorityTaskWoken);
-  esp_timer_start_once(buttonTimer, 2000000);
+  // xResult = xQueueSendFromISR(button_queue, &pressed, &xHigherPriorityTaskWoken);
+  vTaskNotifyGiveFromISR(xTskMenuToNotify,
+                         &xHigherPriorityTaskWoken);
 
   // Если высокоприоритетная задача ждет этого события, переключаем управление
   // if (xResult == pdPASS)
   // {
   //  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
   //};
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 // Функция задачи светодиода
@@ -80,18 +111,112 @@ void TaskWifiUpdateData(void *pvParameters)
   {
     bool button_pressed;
     // Ждем события нажатия кнопки в очереди
-    if (xQueueReceive(button_queue, &button_pressed, portMAX_DELAY))
+    ulTaskNotifyTake(pdTRUE,
+                     portMAX_DELAY);
+
+    ESP_LOGI("ISR", "Button is pressed");
+
+    if (currScreenState == MainScreen)
     {
-      ESP_LOGI("ISR", "Button is pressed");
-      // Переключаем светодиод
-      if (wifi_update_prov_and_connect())
+      if (xTaskNotify(xTskUpdMainScrToNotify,
+                      MENU_PRINT,
+                      eSetValueWithoutOverwrite) == pdPASS)
       {
-        InitNtpTime();
-        GET_Request();
-        dataUpdated = true;
+        currScreenState = MenuScreen;
       }
-      wifi_disconnect();
-    };
+    }
+    else if (currScreenState == MenuScreen)
+    {
+      vTaskDelay(200);
+      if (gpio_get_level(GPIO_NUM_35) == 0)
+      {
+        switch (currMenuState)
+        {
+        case ProvAndUpdate:
+        {
+          if (wifi_update_prov_and_connect())
+          {
+            InitNtpTime();
+            GET_Request();
+          }
+          wifi_disconnect();
+          if (xTaskNotify(xTskUpdMainScrToNotify,
+                          MAIN_SCR_PRINT,
+                          eSetValueWithoutOverwrite) == pdPASS)
+          {
+            currScreenState = MainScreen;
+          }
+        }
+        break;
+        case Update:
+        {
+          if (wifi_connect())
+          {
+            InitNtpTime();
+            GET_Request();
+            dataUpdated = true;
+          }
+          wifi_disconnect();
+          if (xTaskNotify(xTskUpdMainScrToNotify,
+                          MAIN_SCR_PRINT,
+                          eSetValueWithoutOverwrite) == pdPASS)
+          {
+            currScreenState = MainScreen;
+          }
+        }
+        break;
+        case Weather:
+        {
+        }
+        break;
+        case Back:
+        {
+          if (xTaskNotify(xTskUpdMainScrToNotify,
+                          MAIN_SCR_PRINT,
+                          eSetValueWithoutOverwrite) == pdPASS)
+          {
+            currScreenState = MainScreen;
+          }
+        }
+        break;
+        default:
+          break;
+        }
+      }
+      else
+      {
+        if (xTaskNotify(xTskUpdMainScrToNotify,
+                        MENU_PRINT_NEXT,
+                        eSetValueWithoutOverwrite) == pdPASS)
+        {
+          switch (currMenuState)
+          {
+          case ProvAndUpdate:
+          {
+            currMenuState = Update;
+          }
+          break;
+          case Update:
+          {
+            currMenuState = Weather;
+          }
+          break;
+          case Weather:
+          {
+            currMenuState = Back;
+          }
+          break;
+          case Back:
+          {
+            currMenuState = ProvAndUpdate;
+          }
+          break;
+          default:
+            break;
+          }
+        }
+      }
+    }
   };
   vTaskDelete(NULL);
 }
@@ -150,7 +275,7 @@ extern "C" void app_main()
   // Создаем входящую очередь задачи
   button_queue = xQueueCreate(32, sizeof(bool));
 
-  xTaskCreate(&TaskWifiUpdateData, "Task_WifiUpdateData", 8192, NULL, 3, NULL);
+  xTaskCreate(&TaskWifiUpdateData, "Task_WifiUpdateData", 8192, NULL, 3, &xTskMenuToNotify);
 
   gpio_reset_pin(GPIO_NUM_35);
   // gpio_pad_select_gpio(GPIO_NUM_35);
@@ -211,13 +336,17 @@ extern "C" void app_main()
 
   esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
 
-  xTaskCreate(&TaskUpdateTime, "Task_UpdateTime", 8192, NULL, 2, NULL);
+  xTaskCreate(&TaskUpdateTime, "Task_UpdateTime", 8192, NULL, 2, &xTskUpdMainScrToNotify);
   esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
 }
 
 void UpdateTimeCallback(void *parameter)
 {
-  xEventGroupSetBits(minute_event_group, MINUTE_UPDATE_BIT);
+  // xEventGroupSetBits(minute_event_group, MINUTE_UPDATE_BIT);
+  /* Notify the task that the transmission is complete. */
+  xTaskNotify(xTskUpdMainScrToNotify,
+              MINUTE_PRINT_UPD_MAIN_SCR,
+              eSetValueWithoutOverwrite);
 }
 
 void TaskUpdateTime(void *parameter)
@@ -227,21 +356,23 @@ void TaskUpdateTime(void *parameter)
 
   gpio_wakeup_enable(GPIO_NUM_35, GPIO_INTR_LOW_LEVEL);
 
+  uint32_t ulNotifiedValue;
+
   while (true)
   {
     ESP_LOGI(TAG, "TaskUpdateTime");
-    xEventGroupWaitBits(minute_event_group, MINUTE_UPDATE_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
+    // xEventGroupWaitBits(minute_event_group, MINUTE_UPDATE_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
+    xTaskNotifyWait(0x00,             /* Don't clear any notification bits on entry. */
+                    ULONG_MAX,        /* Reset the notification value to 0 on exit. */
+                    &ulNotifiedValue, /* Notified value pass out in
+                                         ulNotifiedValue. */
+                    portMAX_DELAY);
 
-    time_t now = time(nullptr);
-    localtime_r(&now, &timeinfo);
+    if (ulNotifiedValue == MINUTE_PRINT_UPD_MAIN_SCR && currScreenState == MainScreen)
+    {
+      time_t now = time(nullptr);
+      localtime_r(&now, &timeinfo);
 
-    if (dataUpdated)
-    {
-      initDisplayText();
-      dataUpdated = false;
-    }
-    else
-    {
       if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0)
       {
         printDate(0, 70);
@@ -259,10 +390,46 @@ void TaskUpdateTime(void *parameter)
         printPower(voltage, 130, 150);
         stopPowerMeasure();
       }
-    }
-    hibernateDisplay();
-    vTaskDelay(250);
 
+      hibernateDisplay();
+      vTaskDelay(250);
+    }
+    else if (ulNotifiedValue == MAIN_SCR_PRINT)
+    {
+      initDisplayText();
+    }
+    else if (ulNotifiedValue == MENU_PRINT)
+    {
+      displayMenu();
+    }
+    else if (ulNotifiedValue == MENU_PRINT_NEXT && currScreenState == MenuScreen)
+    {
+      switch (currMenuState)
+      {
+      case ProvAndUpdate:
+      {
+        updateMenu(1);
+      }
+      break;
+      case Update:
+      {
+        updateMenu(2);
+      }
+      break;
+      case Weather:
+      {
+        updateMenu(3);
+      }
+      break;
+      case Back:
+      {
+        updateMenu(0);
+      }
+      break;
+      default:
+        break;
+      }
+    }
     // esp_sleep_enable_timer_wakeup(55000000);
 
     // esp_light_sleep_start();

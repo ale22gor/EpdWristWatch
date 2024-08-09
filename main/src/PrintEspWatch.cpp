@@ -253,10 +253,56 @@ void displayMenu()
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
 
-    display.setTextSize(3);
-    display.setCursor(10, 5);
-    display.println("Prov and Update Time");
+    display.setTextSize(2);
+    display.setCursor(0, 5);
+    display.println("Prv + Upd Time");
+
+    display.fillRect(0, 25, 150, 3, GxEPD_BLACK);
+
+    display.setCursor(0, 35);
     display.println("Update Time");
+
+    display.setCursor(0, 65);
     display.println("Weather Data");
+
+    display.setCursor(0, 95);
+    display.println("Back");
     display.display();
+}
+
+void updateMenu(int menuNumber)
+{
+    display.setPartialWindow(0, 0, 200, 200);
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(2);
+    int16_t lineHeigh = 30;
+    if (menuNumber == 0)
+        lineHeigh = 25;
+    if (menuNumber == 0)
+        lineHeigh = 55;
+    if (menuNumber == 0)
+        lineHeigh = 85;
+    if (menuNumber == 0)
+        lineHeigh = 115;
+
+    display.firstPage();
+    do
+    {
+        display.fillScreen(GxEPD_WHITE);
+
+        display.setCursor(0, 5);
+        display.println("Prv + Upd Time");
+
+        display.setCursor(0, 35);
+        display.println("Update Time");
+
+        display.setCursor(0, 65);
+        display.println("Weather Data");
+
+        display.setCursor(0, 95);
+        display.println("Back");
+
+        display.fillRect(0, lineHeigh, 150, 3, GxEPD_BLACK);
+
+    } while (display.nextPage());
 }

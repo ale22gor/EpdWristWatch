@@ -24,5 +24,5 @@ void initDisplayText();
 void initDisplay();
 void hibernateDisplay();
 void displayMenu();
-
+void updateMenu(int menuNumber);
 #endif /* PRINTESPWATCH_H */

@@ -123,6 +123,7 @@ void TaskWifiUpdateData(void *pvParameters)
                       eSetValueWithoutOverwrite) == pdPASS)
       {
         currScreenState = MenuScreen;
+        currMenuState = ProvAndUpdate;
       }
     }
     else if (currScreenState == MenuScreen)
@@ -140,6 +141,8 @@ void TaskWifiUpdateData(void *pvParameters)
             GET_Request();
           }
           wifi_disconnect();
+          time_t now = time(nullptr);
+          localtime_r(&now, &timeinfo);
           if (xTaskNotify(xTskUpdMainScrToNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
@@ -157,6 +160,8 @@ void TaskWifiUpdateData(void *pvParameters)
             dataUpdated = true;
           }
           wifi_disconnect();
+          time_t now = time(nullptr);
+          localtime_r(&now, &timeinfo);
           if (xTaskNotify(xTskUpdMainScrToNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
@@ -171,6 +176,8 @@ void TaskWifiUpdateData(void *pvParameters)
         break;
         case Back:
         {
+          time_t now = time(nullptr);
+          localtime_r(&now, &timeinfo);
           if (xTaskNotify(xTskUpdMainScrToNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
@@ -185,36 +192,36 @@ void TaskWifiUpdateData(void *pvParameters)
       }
       else
       {
-        if (xTaskNotify(xTskUpdMainScrToNotify,
-                        MENU_PRINT_NEXT,
-                        eSetValueWithoutOverwrite) == pdPASS)
+        ESP_LOGI("ISR", "Menu next click");
+
+        switch (currMenuState)
         {
-          switch (currMenuState)
-          {
-          case ProvAndUpdate:
-          {
-            currMenuState = Update;
-          }
-          break;
-          case Update:
-          {
-            currMenuState = Weather;
-          }
-          break;
-          case Weather:
-          {
-            currMenuState = Back;
-          }
-          break;
-          case Back:
-          {
-            currMenuState = ProvAndUpdate;
-          }
-          break;
-          default:
-            break;
-          }
+        case ProvAndUpdate:
+        {
+          currMenuState = Update;
         }
+        break;
+        case Update:
+        {
+          currMenuState = Weather;
+        }
+        break;
+        case Weather:
+        {
+          currMenuState = Back;
+        }
+        break;
+        case Back:
+        {
+          currMenuState = ProvAndUpdate;
+        }
+        break;
+        default:
+          break;
+        }
+        xTaskNotify(xTskUpdMainScrToNotify,
+                    MENU_PRINT_NEXT,
+                    eSetValueWithoutOverwrite);
       }
     }
   };
@@ -237,7 +244,7 @@ extern "C" void app_main()
   Serial.setDebugOutput(true);
 
   // Set timezone
-  setenv("TZ", "MSK-2", 1);
+  setenv("TZ", "MSK-3", 1);
   tzset();
 
   vTaskDelay(250);
@@ -342,6 +349,8 @@ extern "C" void app_main()
 
 void UpdateTimeCallback(void *parameter)
 {
+  time_t now = time(nullptr);
+  localtime_r(&now, &timeinfo);
   // xEventGroupSetBits(minute_event_group, MINUTE_UPDATE_BIT);
   /* Notify the task that the transmission is complete. */
   xTaskNotify(xTskUpdMainScrToNotify,
@@ -370,8 +379,6 @@ void TaskUpdateTime(void *parameter)
 
     if (ulNotifiedValue == MINUTE_PRINT_UPD_MAIN_SCR && currScreenState == MainScreen)
     {
-      time_t now = time(nullptr);
-      localtime_r(&now, &timeinfo);
 
       if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0)
       {
@@ -408,22 +415,22 @@ void TaskUpdateTime(void *parameter)
       {
       case ProvAndUpdate:
       {
-        updateMenu(1);
+        updateMenu(0);
       }
       break;
       case Update:
       {
-        updateMenu(2);
+        updateMenu(1);
       }
       break;
       case Weather:
       {
-        updateMenu(3);
+        updateMenu(2);
       }
       break;
       case Back:
       {
-        updateMenu(0);
+        updateMenu(3);
       }
       break;
       default:

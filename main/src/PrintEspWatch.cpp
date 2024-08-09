@@ -278,11 +278,11 @@ void updateMenu(int menuNumber)
     int16_t lineHeigh = 30;
     if (menuNumber == 0)
         lineHeigh = 25;
-    if (menuNumber == 0)
+    if (menuNumber == 1)
         lineHeigh = 55;
-    if (menuNumber == 0)
+    if (menuNumber == 2)
         lineHeigh = 85;
-    if (menuNumber == 0)
+    if (menuNumber == 3)
         lineHeigh = 115;
 
     display.firstPage();

@@ -122,8 +122,9 @@ void printWeather(uint16_t x, uint16_t y)
 
 void initDisplayText()
 {
-
     display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
+    display.display();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     // display.setTextWrap(false);
@@ -250,6 +251,8 @@ void hibernateDisplay()
 void displayMenu()
 {
     display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
+    display.display();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
 

@@ -28,18 +28,7 @@ void UpdateTimeCallback(void *parameter);
 void SyncDataCallback(void *parameter);
 void TaskUpdateTime(void *pvParameters);
 
-static EventGroupHandle_t minute_event_group;
-
-static QueueHandle_t button_queue = NULL;
 esp_timer_handle_t buttonTimer;
-
-const int time_Update = BIT0;
-
-#define MINUTE_UPDATE_BIT BIT1
-#define SYNC_DATA_BIT BIT1
-
-#define TIME_UPDATED_BIT BIT0
-#define DATA_UPDATED_BIT BIT1
 
 #define MAIN_SCR_PRINT BIT0
 #define MINUTE_PRINT_UPD_MAIN_SCR BIT1
@@ -50,12 +39,6 @@ const int time_Update = BIT0;
    transmission is complete. */
 static TaskHandle_t xTskUpdMainScrToNotify = NULL, xTskMenuToNotify = NULL;
 
-/* The index within the target task's array of task notifications
-   to use. */
-const UBaseType_t xArrayMinuteUpdIndex = 0;
-const UBaseType_t xArrayMenuScrIndex = 2;
-
-bool dataUpdated = false;
 enum menuState
 {
   ProvAndUpdate,
@@ -109,12 +92,11 @@ void TaskWifiUpdateData(void *pvParameters)
 
   while (1)
   {
-    bool button_pressed;
     // Ждем события нажатия кнопки в очереди
     ulTaskNotifyTake(pdTRUE,
                      portMAX_DELAY);
 
-    ESP_LOGI("ISR", "Button is pressed");
+    ESP_LOGI(TAG, "Button is pressed");
 
     if (currScreenState == MainScreen)
     {
@@ -157,7 +139,6 @@ void TaskWifiUpdateData(void *pvParameters)
           {
             InitNtpTime();
             GET_Request();
-            dataUpdated = true;
           }
           wifi_disconnect();
           time_t now = time(nullptr);
@@ -192,7 +173,7 @@ void TaskWifiUpdateData(void *pvParameters)
       }
       else
       {
-        ESP_LOGI("ISR", "Menu next click");
+        ESP_LOGI(TAG, "Menu next click");
 
         switch (currMenuState)
         {
@@ -246,6 +227,8 @@ extern "C" void app_main()
   // Set timezone
   setenv("TZ", "MSK-3", 1);
   tzset();
+  time_t now = time(nullptr);
+  localtime_r(&now, &timeinfo);
 
   vTaskDelay(250);
 
@@ -279,9 +262,6 @@ extern "C" void app_main()
   ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
   wifi_init_sta();
 
-  // Создаем входящую очередь задачи
-  button_queue = xQueueCreate(32, sizeof(bool));
-
   xTaskCreate(&TaskWifiUpdateData, "Task_WifiUpdateData", 8192, NULL, 3, &xTskMenuToNotify);
 
   gpio_reset_pin(GPIO_NUM_35);
@@ -314,20 +294,7 @@ extern "C" void app_main()
   // Разрешаем использование прерываний
   gpio_intr_enable(GPIO_NUM_35);
 
-  esp_pm_config_t pm_config = {
-      .max_freq_mhz = 160,
-      .min_freq_mhz = 80,
-      .light_sleep_enable = true};
-  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
-
-  ESP_LOGI(TAG, "setup(): ready");
-
   vTaskDelay(100);
-
-  time_t now = time(nullptr);
-  localtime_r(&now, &timeinfo);
-  initDisplayText();
-  hibernateDisplay();
 
   esp_timer_handle_t minuteClockTimer;
 
@@ -339,12 +306,17 @@ extern "C" void app_main()
       .skip_unhandled_events = true,
   };
 
-  minute_event_group = xEventGroupCreate();
-
   esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
 
   xTaskCreate(&TaskUpdateTime, "Task_UpdateTime", 8192, NULL, 2, &xTskUpdMainScrToNotify);
   esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
+
+  esp_pm_config_t pm_config = {
+      .max_freq_mhz = 160,
+      .min_freq_mhz = 80,
+      .light_sleep_enable = true};
+  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
+  ESP_LOGI(TAG, "setup(): ready");
 }
 
 void UpdateTimeCallback(void *parameter)
@@ -360,6 +332,9 @@ void UpdateTimeCallback(void *parameter)
 
 void TaskUpdateTime(void *parameter)
 {
+
+  initDisplayText();
+  hibernateDisplay();
 
   esp_sleep_enable_gpio_wakeup();
 

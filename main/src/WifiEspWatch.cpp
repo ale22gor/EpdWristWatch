@@ -45,29 +45,6 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
     s_retry_num = 0;
     xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
   }
-}
-
-void wifi_prov_event_handler(void *arg, esp_event_base_t event_base,
-                             int32_t event_id, void *event_data)
-{
-  if (event_base == WIFI_EVENT)
-  {
-    switch (event_id)
-    {
-    case WIFI_EVENT_STA_START:
-    {
-      break;
-    }
-    case WIFI_EVENT_STA_DISCONNECTED:
-    {
-      esp_wifi_connect();
-      xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-      break;
-    }
-    default:
-      break;
-    }
-  }
   else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
   {
     xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
@@ -128,7 +105,7 @@ void wifi_prov_event_handler(void *arg, esp_event_base_t event_base,
     }
     break;
     default:
-    break;
+      break;
     }
   }
 }
@@ -157,17 +134,17 @@ bool wifi_update_prov_and_connect(void)
 
   ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                       ESP_EVENT_ANY_ID,
-                                                      &wifi_prov_event_handler,
+                                                      &wifi_event_handler,
                                                       NULL,
                                                       &instance_any_id));
   ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
                                                       IP_EVENT_STA_GOT_IP,
-                                                      &wifi_prov_event_handler,
+                                                      &wifi_event_handler,
                                                       NULL,
                                                       &instance_got_ip));
   ESP_ERROR_CHECK(esp_event_handler_instance_register(SC_EVENT,
                                                       ESP_EVENT_ANY_ID,
-                                                      &wifi_prov_event_handler,
+                                                      &wifi_event_handler,
                                                       NULL,
                                                       &instance_any_sc_id));
 

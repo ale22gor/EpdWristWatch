@@ -6,7 +6,6 @@
 #ifndef SNTPESPWATCH_H
 #define SNTPESPWATCH_H
 
-void InitNtpTime();
 void UpdateNtpTime();
 
 #endif /* WIFIESPWATCH_H */

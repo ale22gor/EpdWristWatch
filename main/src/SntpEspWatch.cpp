@@ -2,21 +2,6 @@
 
 extern const char *TAG;
 
-void InitNtpTime()
-{
-  // Synchronize RTC time
-
-  esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("ntp.ix.ru");
-  esp_netif_sntp_init(&config);
-
-  while (esp_netif_sntp_sync_wait(1000 / portTICK_PERIOD_MS) != ESP_OK)
-  {
-    ESP_LOGI(TAG, "Getting Time");
-    vTaskDelay(1000);
-  }
-  esp_netif_sntp_deinit();
-}
-
 void UpdateNtpTime()
 {
   esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");

@@ -122,9 +122,6 @@ void printWeather(uint16_t x, uint16_t y)
 
 void initDisplayText()
 {
-    display.setFullWindow();
-    display.fillScreen(GxEPD_WHITE);
-    display.display();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     // display.setTextWrap(false);
@@ -252,8 +249,6 @@ void displayMenu()
 {
     display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
-    display.display();
-    display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
 
     display.setTextSize(2);
@@ -275,9 +270,6 @@ void displayMenu()
 
 void updateMenu(int menuNumber)
 {
-    display.setPartialWindow(0, 0, 200, 200);
-    display.setTextColor(GxEPD_BLACK);
-    display.setTextSize(2);
     int16_t lineHeigh = 30;
     if (menuNumber == 0)
         lineHeigh = 25;
@@ -287,6 +279,10 @@ void updateMenu(int menuNumber)
         lineHeigh = 85;
     if (menuNumber == 3)
         lineHeigh = 115;
+
+    display.setFullWindow();
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(2);
 
     display.firstPage();
     do
@@ -308,4 +304,27 @@ void updateMenu(int menuNumber)
         display.fillRect(0, lineHeigh, 150, 3, GxEPD_BLACK);
 
     } while (display.nextPage());
+}
+
+void printProvAndUpdate()
+{
+    display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(2);
+    display.setCursor(0, 5);
+    display.println("Provisioning");
+    display.println("AND");
+    display.println("Update");
+    display.display();
+}
+void printUpdate()
+{
+    display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(2);
+    display.setCursor(0, 5);
+    display.println("Update");
+    display.display();
 }

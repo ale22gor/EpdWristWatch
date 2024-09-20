@@ -26,7 +26,9 @@ const char *TAG = "epd watch";
 
 void UpdateTimeCallback(void *parameter);
 void SyncDataCallback(void *parameter);
-void TaskUpdateTime(void *pvParameters);
+void TaskPrintScreen(void *pvParameters);
+
+void MenuSwitchNext();
 
 esp_timer_handle_t buttonTimer;
 
@@ -34,10 +36,12 @@ esp_timer_handle_t buttonTimer;
 #define MINUTE_PRINT_UPD_MAIN_SCR BIT1
 #define MENU_PRINT BIT2
 #define MENU_PRINT_NEXT BIT3
+#define PRINT_PROV_AND_UPD_SCR BIT4
+#define PRINT_UPD_SCR BIT5
 
 /* Stores the handle of the task that will be notified when the
    transmission is complete. */
-static TaskHandle_t xTskUpdMainScrToNotify = NULL, xTskMenuToNotify = NULL;
+static TaskHandle_t xTskPrintScrNotify = NULL, xTskMenuToNotify = NULL;
 
 enum menuState
 {
@@ -100,7 +104,7 @@ void TaskWifiUpdateData(void *pvParameters)
 
     if (currScreenState == MainScreen)
     {
-      if (xTaskNotify(xTskUpdMainScrToNotify,
+      if (xTaskNotify(xTskPrintScrNotify,
                       MENU_PRINT,
                       eSetValueWithoutOverwrite) == pdPASS)
       {
@@ -117,15 +121,18 @@ void TaskWifiUpdateData(void *pvParameters)
         {
         case ProvAndUpdate:
         {
+          xTaskNotify(xTskPrintScrNotify,
+                      PRINT_PROV_AND_UPD_SCR,
+                      eSetValueWithoutOverwrite);
           if (wifi_update_prov_and_connect())
           {
-            InitNtpTime();
+            UpdateNtpTime();
             GET_Request();
           }
           wifi_disconnect();
           time_t now = time(nullptr);
           localtime_r(&now, &timeinfo);
-          if (xTaskNotify(xTskUpdMainScrToNotify,
+          if (xTaskNotify(xTskPrintScrNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
           {
@@ -135,15 +142,18 @@ void TaskWifiUpdateData(void *pvParameters)
         break;
         case Update:
         {
+          xTaskNotify(xTskPrintScrNotify,
+                      PRINT_UPD_SCR,
+                      eSetValueWithoutOverwrite);
           if (wifi_connect())
           {
-            InitNtpTime();
+            UpdateNtpTime();
             GET_Request();
           }
           wifi_disconnect();
           time_t now = time(nullptr);
           localtime_r(&now, &timeinfo);
-          if (xTaskNotify(xTskUpdMainScrToNotify,
+          if (xTaskNotify(xTskPrintScrNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
           {
@@ -159,7 +169,7 @@ void TaskWifiUpdateData(void *pvParameters)
         {
           time_t now = time(nullptr);
           localtime_r(&now, &timeinfo);
-          if (xTaskNotify(xTskUpdMainScrToNotify,
+          if (xTaskNotify(xTskPrintScrNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
           {
@@ -174,33 +184,8 @@ void TaskWifiUpdateData(void *pvParameters)
       else
       {
         ESP_LOGI(TAG, "Menu next click");
-
-        switch (currMenuState)
-        {
-        case ProvAndUpdate:
-        {
-          currMenuState = Update;
-        }
-        break;
-        case Update:
-        {
-          currMenuState = Weather;
-        }
-        break;
-        case Weather:
-        {
-          currMenuState = Back;
-        }
-        break;
-        case Back:
-        {
-          currMenuState = ProvAndUpdate;
-        }
-        break;
-        default:
-          break;
-        }
-        xTaskNotify(xTskUpdMainScrToNotify,
+        MenuSwitchNext();
+        xTaskNotify(xTskPrintScrNotify,
                     MENU_PRINT_NEXT,
                     eSetValueWithoutOverwrite);
       }
@@ -308,7 +293,7 @@ extern "C" void app_main()
 
   esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
 
-  xTaskCreate(&TaskUpdateTime, "Task_UpdateTime", 8192, NULL, 2, &xTskUpdMainScrToNotify);
+  xTaskCreate(&TaskPrintScreen, "Task_UpdateTime", 8192, NULL, 2, &xTskPrintScrNotify);
   esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
 
   esp_pm_config_t pm_config = {
@@ -325,12 +310,12 @@ void UpdateTimeCallback(void *parameter)
   localtime_r(&now, &timeinfo);
   // xEventGroupSetBits(minute_event_group, MINUTE_UPDATE_BIT);
   /* Notify the task that the transmission is complete. */
-  xTaskNotify(xTskUpdMainScrToNotify,
+  xTaskNotify(xTskPrintScrNotify,
               MINUTE_PRINT_UPD_MAIN_SCR,
               eSetValueWithoutOverwrite);
 }
 
-void TaskUpdateTime(void *parameter)
+void TaskPrintScreen(void *parameter)
 {
 
   initDisplayText();
@@ -344,7 +329,7 @@ void TaskUpdateTime(void *parameter)
 
   while (true)
   {
-    ESP_LOGI(TAG, "TaskUpdateTime");
+    ESP_LOGI(TAG, "TaskPrintScreen");
     // xEventGroupWaitBits(minute_event_group, MINUTE_UPDATE_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
     xTaskNotifyWait(0x00,             /* Don't clear any notification bits on entry. */
                     ULONG_MAX,        /* Reset the notification value to 0 on exit. */
@@ -386,34 +371,44 @@ void TaskUpdateTime(void *parameter)
     }
     else if (ulNotifiedValue == MENU_PRINT_NEXT && currScreenState == MenuScreen)
     {
-      switch (currMenuState)
-      {
-      case ProvAndUpdate:
-      {
-        updateMenu(0);
-      }
-      break;
-      case Update:
-      {
-        updateMenu(1);
-      }
-      break;
-      case Weather:
-      {
-        updateMenu(2);
-      }
-      break;
-      case Back:
-      {
-        updateMenu(3);
-      }
-      break;
-      default:
-        break;
-      }
+      updateMenu(int(currMenuState));
     }
-    // esp_sleep_enable_timer_wakeup(55000000);
+    else if (ulNotifiedValue == PRINT_PROV_AND_UPD_SCR)
+    {
+      printProvAndUpdate();
+    }
+    else if (ulNotifiedValue == PRINT_UPD_SCR)
+    {
+      printUpdate();
+    }
+  }
+}
 
-    // esp_light_sleep_start();
+void MenuSwitchNext()
+{
+  switch (currMenuState)
+  {
+  case menuState::ProvAndUpdate:
+  {
+    currMenuState = menuState::Update;
+  }
+  break;
+  case menuState::Update:
+  {
+    currMenuState = menuState::Weather;
+  }
+  break;
+  case menuState::Weather:
+  {
+    currMenuState = menuState::Back;
+  }
+  break;
+  case Back:
+  {
+    currMenuState = menuState::ProvAndUpdate;
+  }
+  break;
+  default:
+    break;
   }
 }

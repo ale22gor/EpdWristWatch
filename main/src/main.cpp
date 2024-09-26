@@ -58,6 +58,8 @@ enum screenSTate
 };
 screenSTate currScreenState = MainScreen;
 
+esp_timer_handle_t minuteClockTimer;
+
 void ButtonTimerCallback(void *parameter)
 {
   // ESP_LOGI("ISR", "Button is enabled");
@@ -71,6 +73,7 @@ static void IRAM_ATTR isrButtonPress(void *arg)
 {
   gpio_intr_disable(GPIO_NUM_35);
   esp_timer_start_once(buttonTimer, 2000000);
+  esp_timer_stop(minuteClockTimer);
 
   // Переменные для переключения контекста
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -145,7 +148,7 @@ void TaskWifiUpdateData(void *pvParameters)
           xTaskNotify(xTskPrintScrNotify,
                       PRINT_UPD_SCR,
                       eSetValueWithoutOverwrite);
-          if (wifi_connect())
+          if (wifi_update_prov_and_connect())
           {
             UpdateNtpTime();
             GET_Request();
@@ -190,6 +193,7 @@ void TaskWifiUpdateData(void *pvParameters)
                     eSetValueWithoutOverwrite);
       }
     }
+    esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
   };
   vTaskDelete(NULL);
 }
@@ -244,8 +248,8 @@ extern "C" void app_main()
   /* Initialize the event loop */
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-  ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-  wifi_init_sta();
+  // ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+  wifi_setDefaults();
 
   xTaskCreate(&TaskWifiUpdateData, "Task_WifiUpdateData", 8192, NULL, 3, &xTskMenuToNotify);
 
@@ -280,8 +284,6 @@ extern "C" void app_main()
   gpio_intr_enable(GPIO_NUM_35);
 
   vTaskDelay(100);
-
-  esp_timer_handle_t minuteClockTimer;
 
   esp_timer_create_args_t configMinuteClockTimer = {
       .callback = UpdateTimeCallback,

@@ -31,10 +31,10 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data);
 void wifi_init_sta(void);
 bool wifi_connect(void);
-bool wifi_update_prov_and_connect(void);
+bool wifi_update_prov_and_connect(bool reset);
 void wifi_disconnect(void);
 void wifi_prov_print_qr(const char *name, const char *username, const char *pop, const char *transport);
 void get_device_service_name(char *service_name, size_t max);
-void wifi_setDefaults();
+void wifi_setDefaults(void);
 
 #endif /* WIFIESPWATCH_H */

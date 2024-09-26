@@ -127,7 +127,7 @@ void TaskWifiUpdateData(void *pvParameters)
           xTaskNotify(xTskPrintScrNotify,
                       PRINT_PROV_AND_UPD_SCR,
                       eSetValueWithoutOverwrite);
-          if (wifi_update_prov_and_connect())
+          if (wifi_update_prov_and_connect(true))
           {
             UpdateNtpTime();
             GET_Request();
@@ -148,7 +148,7 @@ void TaskWifiUpdateData(void *pvParameters)
           xTaskNotify(xTskPrintScrNotify,
                       PRINT_UPD_SCR,
                       eSetValueWithoutOverwrite);
-          if (wifi_update_prov_and_connect())
+          if (wifi_update_prov_and_connect(false))
           {
             UpdateNtpTime();
             GET_Request();

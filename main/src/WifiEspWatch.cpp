@@ -155,7 +155,7 @@ void wifi_setDefaults()
   ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(p_netif));
 }
 
-bool wifi_update_prov_and_connect(void)
+bool wifi_update_prov_and_connect(bool reset)
 {
 
   bool wifiStatus = false;
@@ -172,7 +172,8 @@ bool wifi_update_prov_and_connect(void)
       .scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE};
   ESP_ERROR_CHECK(wifi_prov_mgr_init(config));
 
-  // ESP_ERROR_CHECK(wifi_prov_mgr_reset_provisioning());
+  if (reset)
+    ESP_ERROR_CHECK(wifi_prov_mgr_reset_provisioning());
 
   bool provisioned = false;
   ESP_ERROR_CHECK(wifi_prov_mgr_is_provisioned(&provisioned));

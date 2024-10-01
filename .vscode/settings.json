@@ -13,7 +13,9 @@
     "sstream": "cpp",
     "constants.h": "c",
     "queue": "cpp",
-    "numbers": "cpp"
+    "numbers": "cpp",
+    "regex": "cpp",
+    "bitset": "cpp"
   },
   "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
     "clang-diagnostic-error",

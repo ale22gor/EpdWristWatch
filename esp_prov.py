@@ -201,6 +201,14 @@ async def timezone_data(tp, sec, timezone_data):
         on_except(e)
         return None
 
+async def appiid_data(tp, sec, timezone_data):
+    try:
+        message = prov.custom_data_request(sec, appiid_data)
+        response = await tp.send_data('appiid-data', message)
+        return (prov.custom_data_response(sec, response) == 0)
+    except RuntimeError as e:
+        on_except(e)
+        return None
 
 
 async def scan_wifi_APs(sel_transport, tp, sec):
@@ -422,6 +430,11 @@ async def main():
                         help=desc_format(
                             'This is an optional parameter, only intended for use with '
                             '"examples/provisioning/wifi_prov_mgr"'))
+    parser.add_argument('--appid_data', dest='timezone_data', type=str, default='',
+                        help=desc_format(
+                            'This is an optional parameter, only intended for use with '
+                            '"examples/provisioning/wifi_prov_mgr"'))
+
 
     parser.add_argument('--reset', help='Reset WiFi', action='store_true')
 
@@ -514,6 +527,12 @@ async def main():
             if not await timezone_data(obj_transport, obj_security, args.timezone_data):
                 raise RuntimeError('Error in timezone data')
             print('==== Timezone data sent successfully ====')
+
+        if args.appiid_data != '':
+            print('\n==== Sending appiid data to Target ====')
+            if not await appiid_data(obj_transport, obj_security, args.timezone_data):
+                raise RuntimeError('Error in appiid data')
+            print('==== Appid data sent successfully ====')
 
         if args.ssid == '':
             if not await has_capability(obj_transport, 'wifi_scan'):

@@ -3,7 +3,6 @@
 extern const char *TAG;
 weather localWeather;
 
-
 esp_err_t _http_event_handle(esp_http_client_event_t *evt)
 {
   static char *output_buffer; // Buffer to store response of http request from event handler
@@ -110,65 +109,123 @@ void GET_Request()
     return;
   }
 
-  esp_http_client_config_t config = {
-      .host = "api.openweathermap.org",
-      .path = "/data/2.5/forecast",
-      .query = "lat=59.73&lon=30.10&units=metric&cnt=7&appid=1f0a2a25433b239334b026c51d09ba76",
-      .method = HTTP_METHOD_GET,
-      .event_handler = _http_event_handle,
-      .user_data = local_response_buffer};
+  ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
 
-  esp_http_client_handle_t client = esp_http_client_init(&config);
+  nvs_handle_t my_handle;
+  esp_err_t err = nvs_open("settings", NVS_READONLY, &my_handle);
 
-  esp_err_t err = esp_http_client_perform(client);
-
-  if (err == ESP_OK)
+  if (err != ESP_OK)
   {
-     ESP_LOGI(TAG, "Status = %d",
-             esp_http_client_get_status_code(client));
-  }
-
-  JsonDocument doc;
-  JsonDocument filter;
-  filter["list"][0]["main"]["temp"] = true;
-  filter["list"][0]["weather"][0]["main"] = true;
-  filter["city"]["name"] = true;
-  filter["city"]["sunrise"] = true;
-  filter["city"]["sunset"] = true;
-
-  DeserializationError error = deserializeJson(doc, local_response_buffer, strlen(local_response_buffer), DeserializationOption::Filter(filter));
-  // Test if parsing succeeds.
-  if (!error)
-  {
-    // Serial.print(F("deserializeJson() failed: "));
-    // erial.println(error.f_str());
-    localWeather.cityName = doc["city"]["name"] | "N/A";
-
-    time_t secondsSunrise = doc["city"]["sunrise"] | 0;
-    memcpy(&localWeather.sunrise, localtime(&secondsSunrise), sizeof(struct tm));
-
-    time_t secondsSunset = doc["city"]["sunset"] | 0;
-    memcpy(&localWeather.sunset, localtime(&secondsSunset), sizeof(struct tm));
-
-    if (!localWeather.weatherDataQueue.empty())
-    {
-      localWeather.weatherDataQueue = {};
-    }
-
-    for (JsonVariant v : doc["list"].as<JsonArray>())
-    {
-      weatherData tmpWeather;
-      tmpWeather.weather = v.as<JsonObject>()["weather"][0]["main"] | "N/A";
-      tmpWeather.temp = v.as<JsonObject>()["main"]["temp"];
-      localWeather.weatherDataQueue.push(tmpWeather);
-    }
+    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
   }
   else
   {
-    ESP_LOGI(TAG, "deserializeJson() failed: ");
-  }
+    ESP_LOGI(TAG, "Done\n");
 
-  esp_http_client_cleanup(client);
+    // Read
+    ESP_LOGI(TAG, "Reading   lattitude & longtitude from NVS ... ");
+    size_t required_size = 20;
+    size_t required_summary_size = 0;
+
+    required_summary_size += required_size;
+    char latlong[required_size] = "";
+    err = nvs_get_str(my_handle, "latlong", latlong, &required_size);
+
+    switch (err)
+    {
+    case ESP_OK:
+      ESP_LOGI(TAG, "Done\n");
+      break;
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAG, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+
+    // Read
+    ESP_LOGI(TAG, "Reading  appiid from NVS ... ");
+    required_size = 33;
+    required_summary_size += required_size;
+    char appiid[required_size] = "";
+    err = nvs_get_str(my_handle, "appiid", appiid, &required_size);
+
+    switch (err)
+    {
+    case ESP_OK:
+      ESP_LOGI(TAG, "Done\n");
+      break;
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAG, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+    nvs_close(my_handle);
+    required_summary_size += 1;
+    char query[required_summary_size];
+    snprintf(query, required_summary_size, "%s&units=metric&cnt=7&appid=%s", latlong, appiid);
+
+    esp_http_client_config_t config = {
+        .host = "api.openweathermap.org",
+        .path = "/data/2.5/forecast",
+        .query = query,
+        .method = HTTP_METHOD_GET,
+        .event_handler = _http_event_handle,
+        .user_data = local_response_buffer};
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    esp_err_t err = esp_http_client_perform(client);
+
+    if (err == ESP_OK)
+    {
+      ESP_LOGI(TAG, "Status = %d",
+               esp_http_client_get_status_code(client));
+    }
+
+    JsonDocument doc;
+    JsonDocument filter;
+    filter["list"][0]["main"]["temp"] = true;
+    filter["list"][0]["weather"][0]["main"] = true;
+    filter["city"]["name"] = true;
+    filter["city"]["sunrise"] = true;
+    filter["city"]["sunset"] = true;
+
+    DeserializationError error = deserializeJson(doc, local_response_buffer, strlen(local_response_buffer), DeserializationOption::Filter(filter));
+    // Test if parsing succeeds.
+    if (!error)
+    {
+      // Serial.print(F("deserializeJson() failed: "));
+      // erial.println(error.f_str());
+      localWeather.cityName = doc["city"]["name"] | "N/A";
+
+      time_t secondsSunrise = doc["city"]["sunrise"] | 0;
+      memcpy(&localWeather.sunrise, localtime(&secondsSunrise), sizeof(struct tm));
+
+      time_t secondsSunset = doc["city"]["sunset"] | 0;
+      memcpy(&localWeather.sunset, localtime(&secondsSunset), sizeof(struct tm));
+
+      if (!localWeather.weatherDataQueue.empty())
+      {
+        localWeather.weatherDataQueue = {};
+      }
+
+      for (JsonVariant v : doc["list"].as<JsonArray>())
+      {
+        weatherData tmpWeather;
+        tmpWeather.weather = v.as<JsonObject>()["weather"][0]["main"] | "N/A";
+        tmpWeather.temp = v.as<JsonObject>()["main"]["temp"];
+        localWeather.weatherDataQueue.push(tmpWeather);
+      }
+    }
+    else
+    {
+      ESP_LOGI(TAG, "deserializeJson() failed: ");
+    }
+      esp_http_client_cleanup(client);
+
+  }
   free(local_response_buffer);
   local_response_buffer = NULL;
 }

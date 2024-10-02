@@ -5,6 +5,7 @@
 #include "esp_tls.h"
 #include "esp_log.h"
 #include "esp_smartconfig.h"
+#include "nvs_flash.h"
 
 
 #include "ArduinoJson.h"

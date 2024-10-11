@@ -105,38 +105,38 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
 }
 
 esp_err_t appiid_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
-                                    uint8_t **outbuf, ssize_t *outlen, void *priv_data)
+                                   uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
   if (inbuf)
   {
     char appiid[inlen + 1] = "";
     memcpy(appiid, inbuf, inlen);
     appiid[inlen] = '\0';
-    ESP_LOGI(TAG, "Received lattitude & longtitude data: %s", appiid);
+    ESP_LOGI(TAG, "Received appid data: %s", appiid);
 
-    ESP_LOGI(TAG,"Opening Non-Volatile Storage (NVS) handle... ");
+    ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("settings", NVS_READWRITE, &my_handle);
 
     if (err != ESP_OK)
     {
-      ESP_LOGE(TAG,"Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     }
     else
     {
-      ESP_LOGI(TAG,"Done\n");
+      ESP_LOGI(TAG, "Done\n");
 
-        // Write
+      // Write
       err = nvs_set_str(my_handle, "appiid", appiid);
-      //ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
 
       // Commit written value.
       // After setting any values, nvs_commit() must be called to ensure changes are written
       // to flash storage. Implementations may write to storage at other times,
       // but this is not guaranteed.
-      ESP_LOGI(TAG,"Committing updates in NVS ... ");
+      ESP_LOGI(TAG, "Committing updates in NVS ... ");
       err = nvs_commit(my_handle);
-      //ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
       // Close
       nvs_close(my_handle);
@@ -154,15 +154,15 @@ esp_err_t appiid_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ss
   return ESP_OK;
 }
 
-esp_err_t latlong_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
-                                    uint8_t **outbuf, ssize_t *outlen, void *priv_data)
+esp_err_t latitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+                                     uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
   if (inbuf)
   {
-    char latlong[inlen + 1] = "";
-    memcpy(latlong, inbuf, inlen);
-    latlong[inlen] = '\0';
-    ESP_LOGI(TAG, "Received lattitude & longtitude data: %s", latlong);
+    char lattitude[inlen + 1] = "";
+    memcpy(lattitude, inbuf, inlen);
+    lattitude[inlen] = '\0';
+    ESP_LOGI(TAG, "Received lattitude data: %s", lattitude);
 
     ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
     nvs_handle_t my_handle;
@@ -174,19 +174,69 @@ esp_err_t latlong_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, s
     }
     else
     {
-      ESP_LOGI(TAG,"Done\n");
+      ESP_LOGI(TAG, "Done\n");
 
-        // Write
-      err = nvs_set_str(my_handle, "latlong", latlong);
-      //ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
+      // Write
+      err = nvs_set_str(my_handle, "lattitude", lattitude);
+      // ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
 
       // Commit written value.
       // After setting any values, nvs_commit() must be called to ensure changes are written
       // to flash storage. Implementations may write to storage at other times,
       // but this is not guaranteed.
-      ESP_LOGI(TAG,"Committing updates in NVS ... ");
+      ESP_LOGI(TAG, "Committing updates in NVS ... ");
       err = nvs_commit(my_handle);
-      //ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
+
+      // Close
+      nvs_close(my_handle);
+    }
+  }
+  char response[] = "SUCCESS";
+  *outbuf = (uint8_t *)strdup(response);
+  if (*outbuf == NULL)
+  {
+    ESP_LOGE(TAG, "System out of memory");
+    return ESP_ERR_NO_MEM;
+  }
+  *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
+
+  return ESP_OK;
+}
+
+esp_err_t longitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+                                      uint8_t **outbuf, ssize_t *outlen, void *priv_data)
+{
+  if (inbuf)
+  {
+    char longitude[inlen + 1] = "";
+    memcpy(longitude, inbuf, inlen);
+    longitude[inlen] = '\0';
+    ESP_LOGI(TAG, "Received longitude data: %s", longitude);
+
+    ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("settings", NVS_READWRITE, &my_handle);
+
+    if (err != ESP_OK)
+    {
+      ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+    }
+    else
+    {
+      ESP_LOGI(TAG, "Done\n");
+
+      // Write
+      err = nvs_set_str(my_handle, "longitude", longitude);
+      // ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
+
+      // Commit written value.
+      // After setting any values, nvs_commit() must be called to ensure changes are written
+      // to flash storage. Implementations may write to storage at other times,
+      // but this is not guaranteed.
+      ESP_LOGI(TAG, "Committing updates in NVS ... ");
+      err = nvs_commit(my_handle);
+      // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
       // Close
       nvs_close(my_handle);
@@ -220,23 +270,23 @@ esp_err_t timezone_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, 
 
     if (err != ESP_OK)
     {
-      ESP_LOGE(TAG,"Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+      ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     }
     else
     {
-      ESP_LOGI(TAG,"Done\n");
+      ESP_LOGI(TAG, "Done\n");
 
       // Write
       err = nvs_set_str(my_handle, "timezone", timezone);
-      //ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
       // Commit written value.
       // After setting any values, nvs_commit() must be called to ensure changes are written
       // to flash storage. Implementations may write to storage at other times,
       // but this is not guaranteed.
-      ESP_LOGI(TAG,"Committing updates in NVS ... ");
+      ESP_LOGI(TAG, "Committing updates in NVS ... ");
       err = nvs_commit(my_handle);
-      //ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
       // Close
       nvs_close(my_handle);
@@ -287,22 +337,22 @@ void wifi_setDefaults()
   s_wifi_event_group = xEventGroupCreate();
 
   esp_netif_create_default_wifi_sta();
-  esp_netif_t *p_netif = esp_netif_create_default_wifi_ap();
+  esp_netif_create_default_wifi_ap();
 
-  esp_netif_ip_info_t ip_info = {};
-  esp_netif_set_ip4_addr(&ip_info.ip, 10, 1, 2, 1); // ludite friendly IP address
-  esp_netif_set_ip4_addr(&ip_info.gw, 10, 1, 2, 1);
-  esp_netif_set_ip4_addr(&ip_info.netmask, 255, 255, 255, 0);
+  // esp_netif_ip_info_t ip_info = {};
+  // esp_netif_set_ip4_addr(&ip_info.ip, 10, 1, 2, 1); // ludite friendly IP address
+  // esp_netif_set_ip4_addr(&ip_info.gw, 10, 1, 2, 1);
+  // esp_netif_set_ip4_addr(&ip_info.netmask, 255, 255, 255, 0);
 
-  esp_netif_dns_info_t dns;
-  IP_ADDR4(&dns.ip, 8, 8, 8, 8);
+  // esp_netif_dns_info_t dns;
+  // IP_ADDR4(&dns.ip, 8, 8, 8, 8);
 
-  dhcps_offer_t dhcps_dns_value = OFFER_DNS;
+  // dhcps_offer_t dhcps_dns_value = OFFER_DNS;
 
-  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(p_netif));
-  ESP_ERROR_CHECK(esp_netif_set_ip_info(p_netif, &ip_info));
-  ESP_ERROR_CHECK(esp_netif_dhcps_option(p_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dhcps_dns_value, sizeof(dhcps_dns_value)));
-  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(p_netif));
+  // ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(p_netif));
+  // ESP_ERROR_CHECK(esp_netif_set_ip_info(p_netif, &ip_info));
+  // ESP_ERROR_CHECK(esp_netif_dhcps_option(p_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dhcps_dns_value, sizeof(dhcps_dns_value)));
+  // ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(p_netif));
 }
 
 bool wifi_update_prov_and_connect(bool reset)
@@ -377,9 +427,9 @@ bool wifi_update_prov_and_connect(bool reset)
      * The endpoint name can be anything of your choice.
      * This call must be made before starting the provisioning.
      */
-    // wifi_prov_mgr_endpoint_create("latitude");
-    wifi_prov_mgr_endpoint_create("latlong-data");
-    wifi_prov_mgr_endpoint_create("timezone-data");
+    wifi_prov_mgr_endpoint_create("latitude-data");
+    wifi_prov_mgr_endpoint_create("longitude-data");
+    // wifi_prov_mgr_endpoint_create("timezone-data");
     wifi_prov_mgr_endpoint_create("appiid-data");
 
     /* Do not stop and de-init provisioning even after success,
@@ -394,8 +444,9 @@ bool wifi_update_prov_and_connect(bool reset)
      * This call must be made after starting the provisioning, and only if the endpoint
      * has already been created above.
      */
-    wifi_prov_mgr_endpoint_register("latlong-data", latlong_prov_data_handler, NULL);
-    wifi_prov_mgr_endpoint_register("timezone-data", timezone_prov_data_handler, NULL);
+    wifi_prov_mgr_endpoint_register("latitude-data", latitude_prov_data_handler, NULL);
+    wifi_prov_mgr_endpoint_register("longitude-data", longitude_prov_data_handler, NULL);
+    // wifi_prov_mgr_endpoint_register("timezone-data", timezone_prov_data_handler, NULL);
     wifi_prov_mgr_endpoint_register("appiid-data", appiid_prov_data_handler, NULL);
 
     // wifi_prov_mgr_endpoint_register("longitude", longitude_prov_data_handler, NULL);

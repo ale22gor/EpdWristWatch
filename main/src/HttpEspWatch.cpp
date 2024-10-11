@@ -124,12 +124,30 @@ void GET_Request()
 
     // Read
     ESP_LOGI(TAG, "Reading   lattitude & longtitude from NVS ... ");
-    size_t required_size = 20;
-    size_t required_summary_size = 0;
+    size_t required_size = 6;
+    size_t required_summary_size = required_size;
 
+    char lattitude[required_size] = "";
+    err = nvs_get_str(my_handle, "lattitude", lattitude, &required_size);
+
+    switch (err)
+    {
+    case ESP_OK:
+      ESP_LOGI(TAG, "Done\n");
+      break;
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAG, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+
+    ESP_LOGI(TAG, "Reading   longitude from NVS ... ");
+    required_size = 6;
     required_summary_size += required_size;
-    char latlong[required_size] = "";
-    err = nvs_get_str(my_handle, "latlong", latlong, &required_size);
+
+    char longitude[required_size] = "";
+    err = nvs_get_str(my_handle, "longitude", longitude, &required_size);
 
     switch (err)
     {
@@ -162,10 +180,12 @@ void GET_Request()
       ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
     }
     nvs_close(my_handle);
-    required_summary_size += 1;
+    required_summary_size += 34;
     char query[required_summary_size];
-    snprintf(query, required_summary_size, "%s&units=metric&cnt=7&appid=%s", latlong, appiid);
+    snprintf(query, required_summary_size, "lat=%s&lon=%s&units=metric&cnt=7&appid=%s", lattitude, longitude, appiid);
+    ESP_LOGI(TAG, "Querry: %s\n", query);
 
+    // query[required_summary_size] = '\0';
     esp_http_client_config_t config = {
         .host = "api.openweathermap.org",
         .path = "/data/2.5/forecast",
@@ -223,8 +243,7 @@ void GET_Request()
     {
       ESP_LOGI(TAG, "deserializeJson() failed: ");
     }
-      esp_http_client_cleanup(client);
-
+    esp_http_client_cleanup(client);
   }
   free(local_response_buffer);
   local_response_buffer = NULL;

@@ -15,7 +15,8 @@
     "queue": "cpp",
     "numbers": "cpp",
     "regex": "cpp",
-    "bitset": "cpp"
+    "bitset": "cpp",
+    "cstdlib": "cpp"
   },
   "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
     "clang-diagnostic-error",

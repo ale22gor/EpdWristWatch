@@ -3,7 +3,8 @@
 extern const char *TAG;
 weather localWeather;
 
-esp_err_t _http_event_handle(esp_http_client_event_t *evt)
+esp_err_t
+_http_event_handle(esp_http_client_event_t *evt)
 {
   static char *output_buffer; // Buffer to store response of http request from event handler
   static int output_len;      // Stores number of bytes read
@@ -191,6 +192,7 @@ void GET_Request()
         .path = "/data/2.5/forecast",
         .query = query,
         .method = HTTP_METHOD_GET,
+        .timeout_ms = 100,
         .event_handler = _http_event_handle,
         .user_data = local_response_buffer};
 
@@ -204,26 +206,18 @@ void GET_Request()
                esp_http_client_get_status_code(client));
     }
 
-    JsonDocument doc;
-    JsonDocument filter;
-    filter["list"][0]["main"]["temp"] = true;
-    filter["list"][0]["weather"][0]["main"] = true;
-    filter["city"]["name"] = true;
-    filter["city"]["sunrise"] = true;
-    filter["city"]["sunset"] = true;
+    cJSON *root = cJSON_Parse(local_response_buffer);
 
-    DeserializationError error = deserializeJson(doc, local_response_buffer, strlen(local_response_buffer), DeserializationOption::Filter(filter));
-    // Test if parsing succeeds.
-    if (!error)
+    if (root != NULL)
     {
-      // Serial.print(F("deserializeJson() failed: "));
-      // erial.println(error.f_str());
-      localWeather.cityName = doc["city"]["name"] | "N/A";
+      cJSON *city = cJSON_GetObjectItem(root, "city");
 
-      time_t secondsSunrise = doc["city"]["sunrise"] | 0;
+      localWeather.cityName = cJSON_GetObjectItem(city, "name")->valuestring;
+
+      time_t secondsSunrise = cJSON_GetObjectItem(city, "sunrise")->valueint;
       memcpy(&localWeather.sunrise, localtime(&secondsSunrise), sizeof(struct tm));
 
-      time_t secondsSunset = doc["city"]["sunset"] | 0;
+      time_t secondsSunset = cJSON_GetObjectItem(city, "sunset")->valueint;
       memcpy(&localWeather.sunset, localtime(&secondsSunset), sizeof(struct tm));
 
       if (!localWeather.weatherDataQueue.empty())
@@ -231,18 +225,39 @@ void GET_Request()
         localWeather.weatherDataQueue = {};
       }
 
-      for (JsonVariant v : doc["list"].as<JsonArray>())
+      cJSON *list = cJSON_GetObjectItem(root, "list");
+      if (list != NULL)
       {
-        weatherData tmpWeather;
-        tmpWeather.weather = v.as<JsonObject>()["weather"][0]["main"] | "N/A";
-        tmpWeather.temp = v.as<JsonObject>()["main"]["temp"];
-        localWeather.weatherDataQueue.push(tmpWeather);
+        for (int i = 0; i < cJSON_GetArraySize(list); i++)
+        {
+          cJSON *listItem = cJSON_GetArrayItem(list, i);
+          if (listItem == NULL)
+          {
+            break;
+          }
+          cJSON *main = cJSON_GetObjectItem(listItem, "main");
+          cJSON *weather = cJSON_GetObjectItem(listItem, "weather");
+
+          cJSON *temp = cJSON_GetObjectItem(main, "temp");
+          cJSON *weatherMain = cJSON_GetObjectItem(weather, "main");
+          if (cJSON_IsNumber(temp) && (temp->valuedouble != NULL) && cJSON_IsString(weatherMain) && (weatherMain->valuestring != NULL))
+          {
+            weatherData tmpWeather;
+            tmpWeather.temp = cJSON_GetObjectItem(main, "temp")->valuedouble;
+            tmpWeather.weather = cJSON_GetObjectItem(weather, "main")->valuestring;
+            // tmpWeather.weather = weatherMain;
+            // tmpWeather.temp = temp;
+            localWeather.weatherDataQueue.push(tmpWeather);
+          }
+        }
       }
     }
     else
     {
       ESP_LOGI(TAG, "deserializeJson() failed: ");
     }
+
+    cJSON_Delete(root);
     esp_http_client_cleanup(client);
   }
   free(local_response_buffer);

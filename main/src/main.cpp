@@ -474,7 +474,7 @@ void TaskPrintScreen(void *parameter)
           {
             ESP_LOGI(TAG, "Done\n");
             int64_t currTime = time(nullptr);
-            if (dt < currTime && dt + 10800 > currTime)
+            if (dt - 10800 < currTime && dt  > currTime)
             {
               nvs_get_i8(my_handle, weatherTempKey[i], &weather.temp);
               break;

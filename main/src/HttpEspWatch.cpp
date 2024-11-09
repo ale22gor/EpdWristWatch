@@ -1,10 +1,12 @@
 #include "HttpEspWatch.h"
 
 extern const char *TAG;
-weather localWeather;
+extern const char *weatherDtKey[];
+extern const char *weatherTempKey[];
+extern const char *weatherMainKey[];
 
-esp_err_t
-_http_event_handle(esp_http_client_event_t *evt)
+
+esp_err_t _http_event_handle(esp_http_client_event_t *evt)
 {
   static char *output_buffer; // Buffer to store response of http request from event handler
   static int output_len;      // Stores number of bytes read
@@ -192,7 +194,7 @@ void GET_Request()
         .path = "/data/2.5/forecast",
         .query = query,
         .method = HTTP_METHOD_GET,
-        .timeout_ms = 100,
+        .timeout_ms = 10000,
         .event_handler = _http_event_handle,
         .user_data = local_response_buffer};
 
@@ -212,45 +214,78 @@ void GET_Request()
     {
       cJSON *city = cJSON_GetObjectItem(root, "city");
 
-      localWeather.cityName = cJSON_GetObjectItem(city, "name")->valuestring;
+      ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
+      nvs_handle_t location_handle;
+      esp_err_t errNvsLocation = nvs_open("location", NVS_READWRITE, &location_handle);
+      nvs_handle_t weather_handle;
+      esp_err_t errNvsWeather = nvs_open("weather", NVS_READWRITE, &weather_handle);
 
-      time_t secondsSunrise = cJSON_GetObjectItem(city, "sunrise")->valueint;
-      memcpy(&localWeather.sunrise, localtime(&secondsSunrise), sizeof(struct tm));
-
-      time_t secondsSunset = cJSON_GetObjectItem(city, "sunset")->valueint;
-      memcpy(&localWeather.sunset, localtime(&secondsSunset), sizeof(struct tm));
-
-      if (!localWeather.weatherDataQueue.empty())
+      if (errNvsLocation != ESP_OK && errNvsWeather != ESP_OK)
       {
-        localWeather.weatherDataQueue = {};
+        ESP_LOGE(TAG, "Error (%s) opening NVS location handle!\n", esp_err_to_name(errNvsLocation));
+        ESP_LOGE(TAG, "Error (%s) opening NVS weather handle!\n", esp_err_to_name(errNvsWeather));
+
+      }
+      else
+      {
+         
+        ESP_LOGI(TAG, "Done\n");
+
+        // Write
+        esp_err_t err = nvs_set_str(location_handle, "city", cJSON_GetObjectItem(city, "name")->valuestring);
+        // ESP_LOGI(TAG, "City %s\n",cJSON_GetObjectItem(city, "name")->valuestring);
+        // ESP_LOGI(TAG, "sunrise %d\n",cJSON_GetObjectItem(city, "sunrise")->valueint);
+        // ESP_LOGI(TAG, "sunset %d\n",cJSON_GetObjectItem(city, "sunset")->valueint);
+
+        int64_t sunrise = cJSON_GetObjectItem(city, "sunrise")->valueint;
+        err = nvs_set_i64(location_handle, "sunrise", sunrise);
+        int64_t sunset = cJSON_GetObjectItem(city, "sunset")->valueint;
+        err = nvs_set_i64(location_handle, "sunset", sunset);
       }
 
       cJSON *list = cJSON_GetObjectItem(root, "list");
       if (list != NULL)
       {
-        for (int i = 0; i < cJSON_GetArraySize(list); i++)
+        for (int i = 0; i < cJSON_GetArraySize(list) && i < 7; i++)
         {
           cJSON *listItem = cJSON_GetArrayItem(list, i);
-          if (listItem == NULL)
-          {
-            break;
-          }
+
           cJSON *main = cJSON_GetObjectItem(listItem, "main");
           cJSON *weather = cJSON_GetObjectItem(listItem, "weather");
+          cJSON *weatherItem = cJSON_GetArrayItem(weather, 0);
 
+          cJSON *dt = cJSON_GetObjectItem(listItem, "dt");
           cJSON *temp = cJSON_GetObjectItem(main, "temp");
-          cJSON *weatherMain = cJSON_GetObjectItem(weather, "main");
-          if (cJSON_IsNumber(temp) && (temp->valuedouble != NULL) && cJSON_IsString(weatherMain) && (weatherMain->valuestring != NULL))
+          cJSON *weatherMain = cJSON_GetObjectItem(weatherItem, "main");
+          esp_err_t err;
+          if (cJSON_IsString(weatherMain) && (weatherMain->valuestring != NULL))
           {
-            weatherData tmpWeather;
-            tmpWeather.temp = cJSON_GetObjectItem(main, "temp")->valuedouble;
-            tmpWeather.weather = cJSON_GetObjectItem(weather, "main")->valuestring;
-            // tmpWeather.weather = weatherMain;
-            // tmpWeather.temp = temp;
-            localWeather.weatherDataQueue.push(tmpWeather);
+            ESP_LOGI(TAG, "weather: %s\n",weatherMain->valuestring);
+            ESP_LOGI(TAG, "temp: %d\n",(int)temp->valuedouble);
+            ESP_LOGI(TAG, "dt: %d\n",dt->valueint);
+
+            int8_t tempInt = (int)temp->valuedouble;
+            err = nvs_set_i8(weather_handle, weatherTempKey[i], tempInt);
+
+            char *weatherChar = weatherMain->valuestring;
+            err = nvs_set_str(weather_handle, weatherMainKey[i], weatherChar);
+
+            int64_t dtInt = dt->valueint;
+            err = nvs_set_i64(weather_handle, weatherDtKey[i], dtInt);
+
           }
         }
       }
+
+      // Commit written value.
+      ESP_LOGI(TAG, "Committing updates in NVS ... ");
+      errNvsLocation = nvs_commit(location_handle);
+      // Close
+      nvs_close(location_handle);
+
+      errNvsWeather = nvs_commit(weather_handle);
+      // Close
+      nvs_close(weather_handle);
     }
     else
     {

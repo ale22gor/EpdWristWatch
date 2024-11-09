@@ -1,8 +1,8 @@
 #include <GxEPD2_BW.h>
 #include "bitmaps/Bitmaps152x152.h" // 1.54" b/w
 
-#include "HttpEspWatch.h"
 #include "IMG.h"
+#include "Definitions.h"
 
 #ifndef PRINTESPWATCH_H
 #define PRINTESPWATCH_H
@@ -15,12 +15,12 @@
 #define EPD_RESET 17
 #define EPD_BUSY 16
 
-void printHour(uint16_t x, uint16_t y);
-void printMinute(uint16_t x, uint16_t y);
-void printDate(uint16_t x, uint16_t y);
+void printHour(uint16_t x, uint16_t y,tm timeinfo);
+void printMinute(uint16_t x, uint16_t y,tm timeinfo);
+void printDate(uint16_t x, uint16_t y,tm timeinfo);
 void printPower(int voltage, uint16_t x, uint16_t y);
-void printWeather(uint16_t x, uint16_t y);
-void initDisplayText();
+void printWeather(uint16_t x, uint16_t y, weatherData weather);
+void initDisplayText(tm timeinfo, tm sunrise, tm sunset,weatherData weather);
 void initDisplay();
 void hibernateDisplay();
 void displayMenu();

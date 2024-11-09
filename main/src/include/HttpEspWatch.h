@@ -7,6 +7,8 @@
 #include "esp_smartconfig.h"
 #include "nvs_flash.h"
 #include "cJSON.h"
+#include "Definitions.h"
+
 
 #include <sys/param.h>
 #include <queue>
@@ -19,18 +21,5 @@
 
 void GET_Request();
 esp_err_t _http_event_handle(esp_http_client_event_t *evt);
-
-struct weatherData
-{
-  String weather;
-  float temp;
-};
-struct weather
-{
-  String cityName;
-  tm sunrise;
-  tm sunset;
-  std::queue<weatherData> weatherDataQueue;
-};
 
 #endif /* WIFIESPWATCH_H */

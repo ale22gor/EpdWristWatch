@@ -1,14 +1,11 @@
 #include "PrintEspWatch.h"
 
-extern struct tm timeinfo;
-extern weather localWeather;
-
 SPIClass hspi(HSPI);
 
 GxEPD2_BW<GxEPD2_150_BN, GxEPD2_150_BN::HEIGHT> display(
     GxEPD2_150_BN(EPD_CS, EPD_DC, EPD_RESET, EPD_BUSY));
 
-void printHour(uint16_t x, uint16_t y)
+void printHour(uint16_t x, uint16_t y, tm timeinfo)
 {
     display.setTextColor(GxEPD_BLACK);
     display.setTextSize(7);
@@ -26,7 +23,7 @@ void printHour(uint16_t x, uint16_t y)
     } while (display.nextPage());
 }
 
-void printMinute(uint16_t x, uint16_t y)
+void printMinute(uint16_t x, uint16_t y, tm timeinfo)
 {
     display.setTextColor(GxEPD_BLACK);
     display.setTextSize(7);
@@ -40,7 +37,7 @@ void printMinute(uint16_t x, uint16_t y)
     } while (display.nextPage());
 }
 
-void printDate(uint16_t x, uint16_t y)
+void printDate(uint16_t x, uint16_t y, tm timeinfo)
 {
     display.setTextColor(GxEPD_BLACK);
     display.setPartialWindow(0, 70, 70, 75);
@@ -99,11 +96,8 @@ void printPower(int voltage, uint16_t x, uint16_t y)
     } while (display.nextPage());
 }
 
-void printWeather(uint16_t x, uint16_t y)
+void printWeather(uint16_t x, uint16_t y, weatherData weather)
 {
-    if (localWeather.weatherDataQueue.empty())
-        return;
-
     display.setPartialWindow(0, 150, 100, 50);
     display.setTextColor(GxEPD_BLACK);
     display.setTextSize(3);
@@ -113,14 +107,12 @@ void printWeather(uint16_t x, uint16_t y)
     do
     {
         display.fillScreen(GxEPD_WHITE);
-        display.print(localWeather.weatherDataQueue.front().temp);
+        display.print(weather.temp);
 
     } while (display.nextPage());
-
-    localWeather.weatherDataQueue.pop();
 }
 
-void initDisplayText()
+void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather)
 {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
@@ -196,25 +188,21 @@ void initDisplayText()
 
     display.setTextSize(1);
     display.setCursor(105, 65);
-    display.printf("%02d", localWeather.sunrise.tm_hour);
+    display.printf("%02d", sunrise.tm_hour);
     display.println("|DAWN");
     for (int i = 0; i <= 17; i++)
     {
         display.fillRect(105, 80 + (i * 3), 10, 2, GxEPD_BLACK);
     }
     display.setCursor(105, 140);
-    display.printf("%02d", localWeather.sunset.tm_hour);
+    display.printf("%02d", sunset.tm_hour);
     display.print("|DASK");
 
     // print weather
-    if (!localWeather.weatherDataQueue.empty())
-    {
 
-        display.setTextSize(3);
-        display.setCursor(0, 150);
-        display.print(localWeather.weatherDataQueue.front().temp);
-        localWeather.weatherDataQueue.pop();
-    }
+    display.setTextSize(3);
+    display.setCursor(0, 150);
+    display.print(weather.temp);
 
     // display.fillTriangle(60, 180, 70, 185, 70, 175, GxEPD_BLACK);
     // display.setCursor(0, 180);

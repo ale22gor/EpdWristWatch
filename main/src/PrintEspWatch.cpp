@@ -96,6 +96,78 @@ void printPower(int voltage, uint16_t x, uint16_t y)
     } while (display.nextPage());
 }
 
+void printWeatherDescription(u16_t id)
+{
+    if (id >= 200 && id < 300)
+    {
+        display.println("Thunder");
+    }
+    else if (id >= 300 && id < 400)
+    {
+        display.println("Rain");
+    }
+    else if (id >= 500 && id < 600)
+    {
+        display.println("Rain And Sun");
+    }
+    else if (id >= 600 && id < 700)
+    {
+        display.println("Snow");
+    }
+    else if (id >= 700 && id < 800)
+    {
+        display.println("Fog");
+    }
+    else if (id == 800)
+    {
+        display.println("Clear");
+    }
+    else if (id >= 800 && id < 804)
+    {
+        display.println("Clouds");
+    }
+    else
+    {
+        display.println("lt Clouds");
+    }
+}
+
+void printWeatherIconMainScr(u16_t id)
+{
+    if (id >= 200 && id < 300)
+    {
+        display.drawBitmap(125, 68, Thunder, 75, 75, GxEPD_BLACK);
+    }
+    else if (id >= 300 && id < 400)
+    {
+        display.drawBitmap(125, 68, Rain, 75, 75, GxEPD_BLACK);
+    }
+    else if (id >= 500 && id < 600)
+    {
+        display.drawBitmap(125, 68, RainAndSun, 75, 75, GxEPD_BLACK);
+    }
+    else if (id >= 600 && id < 700)
+    {
+        display.drawBitmap(125, 68, Snow, 75, 75, GxEPD_BLACK);
+    }
+    else if (id >= 700 && id < 800)
+    {
+        display.drawBitmap(125, 68, Fog, 75, 75, GxEPD_BLACK);
+    }
+    else if (id == 800)
+    {
+        display.drawBitmap(125, 68, Clear, 75, 75, GxEPD_BLACK);
+    }
+    else if (id >= 800 && id < 804)
+    {
+        display.drawBitmap(125, 68, Clouds, 75, 75, GxEPD_BLACK);
+    }
+    else
+    {
+        display.drawBitmap(125, 68, LightClouds, 75, 75, GxEPD_BLACK);
+    }
+}
+
 void printWeather(uint16_t x, uint16_t y, weatherData weather)
 {
     display.setPartialWindow(0, 150, 100, 50);
@@ -108,6 +180,15 @@ void printWeather(uint16_t x, uint16_t y, weatherData weather)
     {
         display.fillScreen(GxEPD_WHITE);
         display.print(weather.temp);
+
+    } while (display.nextPage());
+
+    display.setPartialWindow(125, 68, 75, 75);
+
+    display.firstPage();
+    do
+    {
+        printWeatherIconMainScr(weather.weather);
 
     } while (display.nextPage());
 }
@@ -182,7 +263,7 @@ void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather)
 
     // print planet and sunrise/sunset info
 
-    display.drawBitmap(125, 68, planet, 75, 75, GxEPD_BLACK);
+    // display.drawBitmap(125, 68, planet, 75, 75, GxEPD_BLACK);
     display.fillRect(105, 75, 20, 3, GxEPD_BLACK);
     display.fillRect(105, 135, 20, 3, GxEPD_BLACK);
 
@@ -203,6 +284,8 @@ void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather)
     display.setTextSize(3);
     display.setCursor(0, 150);
     display.print(weather.temp);
+
+    printWeatherIconMainScr(weather.weather);
 
     // display.fillTriangle(60, 180, 70, 185, 70, 175, GxEPD_BLACK);
     // display.setCursor(0, 180);
@@ -314,5 +397,21 @@ void printUpdate()
     display.setTextSize(2);
     display.setCursor(0, 5);
     display.println("Update");
+    display.display();
+}
+void printWeather(weatherData weather[])
+{
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(2);
+    display.setCursor(0, 5);
+
+    for (int i = 0; i < 7; i++)
+    {
+        display.printf("%02d  ", weather[i].time.tm_hour);
+        display.print(weather[i].temp);
+        display.print("c ");
+        printWeatherDescription(weather[i].weather);
+    }
     display.display();
 }

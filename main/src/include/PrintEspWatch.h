@@ -27,4 +27,5 @@ void displayMenu();
 void printProvAndUpdate();
 void printUpdate();
 void updateMenu(int menuNumber);
+void printWeather(weatherData weather[]);
 #endif /* PRINTESPWATCH_H */

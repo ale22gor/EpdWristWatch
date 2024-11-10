@@ -5,7 +5,6 @@ extern const char *weatherDtKey[];
 extern const char *weatherTempKey[];
 extern const char *weatherMainKey[];
 
-
 esp_err_t _http_event_handle(esp_http_client_event_t *evt)
 {
   static char *output_buffer; // Buffer to store response of http request from event handler
@@ -217,18 +216,14 @@ void GET_Request()
       ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
       nvs_handle_t location_handle;
       esp_err_t errNvsLocation = nvs_open("location", NVS_READWRITE, &location_handle);
-      nvs_handle_t weather_handle;
-      esp_err_t errNvsWeather = nvs_open("weather", NVS_READWRITE, &weather_handle);
 
-      if (errNvsLocation != ESP_OK && errNvsWeather != ESP_OK)
+      if (errNvsLocation != ESP_OK)
       {
         ESP_LOGE(TAG, "Error (%s) opening NVS location handle!\n", esp_err_to_name(errNvsLocation));
-        ESP_LOGE(TAG, "Error (%s) opening NVS weather handle!\n", esp_err_to_name(errNvsWeather));
-
       }
       else
       {
-         
+
         ESP_LOGI(TAG, "Done\n");
 
         // Write
@@ -243,46 +238,55 @@ void GET_Request()
         err = nvs_set_i64(location_handle, "sunset", sunset);
       }
 
-      cJSON *list = cJSON_GetObjectItem(root, "list");
-      if (list != NULL)
-      {
-        for (int i = 0; i < cJSON_GetArraySize(list) && i < 7; i++)
-        {
-          cJSON *listItem = cJSON_GetArrayItem(list, i);
-
-          cJSON *main = cJSON_GetObjectItem(listItem, "main");
-          cJSON *weather = cJSON_GetObjectItem(listItem, "weather");
-          cJSON *weatherItem = cJSON_GetArrayItem(weather, 0);
-
-          cJSON *dt = cJSON_GetObjectItem(listItem, "dt");
-          cJSON *temp = cJSON_GetObjectItem(main, "temp");
-          cJSON *weatherMain = cJSON_GetObjectItem(weatherItem, "main");
-          esp_err_t err;
-          if (cJSON_IsString(weatherMain) && (weatherMain->valuestring != NULL))
-          {
-            ESP_LOGI(TAG, "weather: %s\n",weatherMain->valuestring);
-            ESP_LOGI(TAG, "temp: %d\n",(int)temp->valuedouble);
-            ESP_LOGI(TAG, "dt: %d\n",dt->valueint);
-
-            int8_t tempInt = (int)temp->valuedouble;
-            err = nvs_set_i8(weather_handle, weatherTempKey[i], tempInt);
-
-            char *weatherChar = weatherMain->valuestring;
-            err = nvs_set_str(weather_handle, weatherMainKey[i], weatherChar);
-
-            int64_t dtInt = dt->valueint;
-            err = nvs_set_i64(weather_handle, weatherDtKey[i], dtInt);
-
-          }
-        }
-      }
-
-      // Commit written value.
       ESP_LOGI(TAG, "Committing updates in NVS ... ");
+
       errNvsLocation = nvs_commit(location_handle);
       // Close
       nvs_close(location_handle);
 
+      nvs_handle_t weather_handle;
+      esp_err_t errNvsWeather = nvs_open("weather", NVS_READWRITE, &weather_handle);
+      if (errNvsWeather != ESP_OK)
+      {
+        ESP_LOGE(TAG, "Error (%s) opening NVS weather handle!\n", esp_err_to_name(errNvsWeather));
+      }
+      else
+      {
+        cJSON *list = cJSON_GetObjectItem(root, "list");
+        if (list != NULL)
+        {
+          for (int i = 0; i < cJSON_GetArraySize(list) && i < 7; i++)
+          {
+            cJSON *listItem = cJSON_GetArrayItem(list, i);
+
+            cJSON *main = cJSON_GetObjectItem(listItem, "main");
+            cJSON *weather = cJSON_GetObjectItem(listItem, "weather");
+            cJSON *weatherItem = cJSON_GetArrayItem(weather, 0);
+
+            cJSON *dt = cJSON_GetObjectItem(listItem, "dt");
+            cJSON *temp = cJSON_GetObjectItem(main, "temp");
+            cJSON *weatherId = cJSON_GetObjectItem(weatherItem, "id");
+            esp_err_t err;
+            if (true)
+            {
+              ESP_LOGI(TAG, "weather: %d\n", weatherId->valueint);
+              ESP_LOGI(TAG, "temp: %d\n", (int)temp->valuedouble);
+              ESP_LOGI(TAG, "dt: %d\n", dt->valueint);
+
+              int8_t tempInt = (int)temp->valuedouble;
+              err = nvs_set_i8(weather_handle, weatherTempKey[i], tempInt);
+
+              u16_t weatherIdInt = weatherId->valueint;
+              err = nvs_set_u16(weather_handle, weatherMainKey[i], weatherIdInt);
+
+              int64_t dtInt = dt->valueint;
+              err = nvs_set_i64(weather_handle, weatherDtKey[i], dtInt);
+            }
+          }
+        }
+      }
+      // Commit written value.
+      ESP_LOGI(TAG, "Committing updates in NVS ... ");
       errNvsWeather = nvs_commit(weather_handle);
       // Close
       nvs_close(weather_handle);

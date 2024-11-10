@@ -3,8 +3,9 @@
 
 struct weatherData
 {
-  char* weather;
+  u16_t weather;
   int8_t temp;
+  struct tm time;
 };
 
 

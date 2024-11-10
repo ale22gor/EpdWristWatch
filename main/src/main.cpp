@@ -54,7 +54,7 @@ struct tm timeinfo = {0};
 struct tm sunriseTm = {0};
 struct tm sunsetTm = {0};
 
-struct weatherData weather = {.weather = NULL, .temp = 0};
+struct weatherData weather = {.weather = 0, .temp = 0, .time = 0};
 
 const char *TAG = "epd watch";
 
@@ -72,6 +72,7 @@ esp_timer_handle_t buttonTimer;
 #define MENU_PRINT_NEXT BIT3
 #define PRINT_PROV_AND_UPD_SCR BIT4
 #define PRINT_UPD_SCR BIT5
+#define PRINT_WEATHER_SCR BIT6
 
 /* Stores the handle of the task that will be notified when the
    transmission is complete. */
@@ -88,7 +89,8 @@ menuState currMenuState = ProvAndUpdate;
 enum screenSTate
 {
   MainScreen,
-  MenuScreen
+  MenuScreen,
+  WeatherScreen
 };
 screenSTate currScreenState = MainScreen;
 
@@ -200,6 +202,12 @@ void TaskWifiUpdateData(void *pvParameters)
         break;
         case Weather:
         {
+          if (xTaskNotify(xTskPrintScrNotify,
+                          PRINT_WEATHER_SCR,
+                          eSetValueWithoutOverwrite) == pdPASS)
+          {
+            currScreenState = WeatherScreen;
+          }
         }
         break;
         case Back:
@@ -227,9 +235,148 @@ void TaskWifiUpdateData(void *pvParameters)
                     eSetValueWithoutOverwrite);
       }
     }
+    else if (currScreenState == WeatherScreen)
+    {
+      time_t now = time(nullptr);
+      localtime_r(&now, &timeinfo);
+      if (xTaskNotify(xTskPrintScrNotify,
+                      MAIN_SCR_PRINT,
+                      eSetValueWithoutOverwrite) == pdPASS)
+      {
+        currScreenState = MainScreen;
+      }
+    }
+
     esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
   };
   vTaskDelete(NULL);
+}
+
+void GetWeatherFromNVS()
+{
+  nvs_handle_t my_handle;
+  esp_err_t err = nvs_open("weather", NVS_READONLY, &my_handle);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+  }
+  else
+  {
+    ESP_LOGI(TAG, "Done\n");
+
+    ESP_LOGI(TAG, "Reading weather data from NVS ... ");
+
+    // Example of listing all the key-value pairs of any type under specified handle (which defines a partition and namespace)
+
+    struct weatherData weatherArray[7];
+    for (int i = 0; i < 7; i++)
+    {
+      int64_t dt;
+      err = nvs_get_i64(my_handle, weatherDtKey[i], &dt);
+      localtime_r(&dt, &weatherArray[i].time);
+      nvs_get_i8(my_handle, weatherTempKey[i], &weatherArray[i].temp);
+      nvs_get_u16(my_handle, weatherMainKey[i], &weatherArray[i].weather);
+    }
+    printWeather(weatherArray);
+  }
+
+  nvs_close(my_handle);
+}
+
+void UpdateWeatherFromNVS()
+{
+  nvs_handle_t my_handle;
+  esp_err_t err = nvs_open("weather", NVS_READONLY, &my_handle);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+  }
+  else
+  {
+    ESP_LOGI(TAG, "Done\n");
+
+    ESP_LOGI(TAG, "Reading weather data from NVS ... ");
+
+    // Example of listing all the key-value pairs of any type under specified handle (which defines a partition and namespace)
+
+    for (int i = 0; i < 7; i++)
+    {
+      int64_t dt;
+      err = nvs_get_i64(my_handle, weatherDtKey[i], &dt);
+      if (err == ESP_OK)
+      {
+        ESP_LOGI(TAG, "Done\n");
+        int64_t currTime = time(nullptr);
+        if (dt - 10800 < currTime && dt > currTime)
+        {
+          nvs_get_i8(my_handle, weatherTempKey[i], &weather.temp);
+          nvs_get_u16(my_handle, weatherMainKey[i], &weather.weather);
+          break;
+        }
+      }
+      else
+      {
+        break;
+      }
+    }
+  }
+  nvs_close(my_handle);
+}
+
+void UpdateLocationFromNVS()
+{
+  nvs_handle_t my_handle;
+  esp_err_t err = nvs_open("location", NVS_READONLY, &my_handle);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+  }
+  else
+  {
+    ESP_LOGI(TAG, "Done\n");
+
+    ESP_LOGI(TAG, "Reading sunrise & sunset from NVS ... ");
+
+    int64_t sunrise;
+    err = nvs_get_i64(my_handle, "sunrise", &sunrise);
+
+    switch (err)
+    {
+    case ESP_OK:
+    {
+      ESP_LOGI(TAG, "Done\n");
+      time_t sunriseTime_t = (time_t)sunrise;
+      sunriseTm = *localtime(&sunriseTime_t);
+      break;
+    }
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAG, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+
+    int64_t sunset;
+    err = nvs_get_i64(my_handle, "sunset", &sunset);
+
+    switch (err)
+    {
+    case ESP_OK:
+    {
+      ESP_LOGI(TAG, "Done\n");
+      time_t sunsetTime_t = (time_t)sunset;
+      sunsetTm = *localtime(&sunsetTime_t);
+      break;
+    }
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAG, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+  }
+  nvs_close(my_handle);
 }
 
 extern "C" void app_main()
@@ -355,6 +502,8 @@ void TaskPrintScreen(void *parameter)
 {
   // tm sunrise, sunset;
 
+  UpdateWeatherFromNVS();
+
   initDisplayText(timeinfo, sunriseTm, sunsetTm, weather);
   hibernateDisplay();
 
@@ -384,7 +533,10 @@ void TaskPrintScreen(void *parameter)
       printHour(7, 0, timeinfo);
 
       if (timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0)
+      {
+        UpdateWeatherFromNVS();
         printWeather(20, 5, weather);
+      }
 
       if (timeinfo.tm_min % 5 == 0)
       {
@@ -400,89 +552,8 @@ void TaskPrintScreen(void *parameter)
     }
     else if (ulNotifiedValue == MAIN_SCR_PRINT)
     {
-      nvs_handle_t my_handle;
-      esp_err_t err = nvs_open("location", NVS_READONLY, &my_handle);
-
-      if (err != ESP_OK)
-      {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-      }
-      else
-      {
-        ESP_LOGI(TAG, "Done\n");
-
-        ESP_LOGI(TAG, "Reading sunrise & sunset from NVS ... ");
-
-        int64_t sunrise;
-        err = nvs_get_i64(my_handle, "sunrise", &sunrise);
-
-        switch (err)
-        {
-        case ESP_OK:
-        {
-          ESP_LOGI(TAG, "Done\n");
-          time_t sunriseTime_t = (time_t)sunrise;
-          sunriseTm = *localtime(&sunriseTime_t);
-          break;
-        }
-        case ESP_ERR_NVS_NOT_FOUND:
-          ESP_LOGI(TAG, "The value is not initialized yet!\n");
-          break;
-        default:
-          ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
-        }
-
-        int64_t sunset;
-        err = nvs_get_i64(my_handle, "sunset", &sunset);
-
-        switch (err)
-        {
-        case ESP_OK:
-        {
-          ESP_LOGI(TAG, "Done\n");
-          time_t sunsetTime_t = (time_t)sunset;
-          sunsetTm = *localtime(&sunsetTime_t);
-          break;
-        }
-        case ESP_ERR_NVS_NOT_FOUND:
-          ESP_LOGI(TAG, "The value is not initialized yet!\n");
-          break;
-        default:
-          ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
-        }
-      }
-      nvs_close(my_handle);
-
-      err = nvs_open("weather", NVS_READONLY, &my_handle);
-      if (err != ESP_OK)
-      {
-        ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-      }
-      else
-      {
-        ESP_LOGI(TAG, "Done\n");
-
-        ESP_LOGI(TAG, "Reading weather data from NVS ... ");
-
-        // Example of listing all the key-value pairs of any type under specified handle (which defines a partition and namespace)
-
-        for (int i = 0; i < 7; i++)
-        {
-          int64_t dt;
-          err = nvs_get_i64(my_handle, weatherDtKey[i], &dt);
-          if (err == ESP_OK)
-          {
-            ESP_LOGI(TAG, "Done\n");
-            int64_t currTime = time(nullptr);
-            if (dt - 10800 < currTime && dt  > currTime)
-            {
-              nvs_get_i8(my_handle, weatherTempKey[i], &weather.temp);
-              break;
-            }
-          }
-        }
-      }
-      nvs_close(my_handle);
+      UpdateLocationFromNVS();
+      UpdateWeatherFromNVS();
 
       initDisplayText(timeinfo, sunriseTm, sunsetTm, weather);
     }
@@ -501,6 +572,10 @@ void TaskPrintScreen(void *parameter)
     else if (ulNotifiedValue == PRINT_UPD_SCR)
     {
       printUpdate();
+    }
+    else if (ulNotifiedValue == PRINT_WEATHER_SCR)
+    {
+      GetWeatherFromNVS();
     }
   }
 }

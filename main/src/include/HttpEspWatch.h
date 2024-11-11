@@ -17,7 +17,7 @@
 #define HTTPESPWATCH_H
 
 #define MAX_HTTP_RECV_BUFFER 512
-#define MAX_HTTP_OUTPUT_BUFFER 4096
+#define MAX_HTTP_OUTPUT_BUFFER 16000
 
 void GET_Request();
 esp_err_t _http_event_handle(esp_http_client_event_t *evt);

@@ -1,6 +1,6 @@
 #include "WifiEspWatch.h"
 
-extern const char *TAG;
+const char *TAGWIFI = "EPDWatchWIFI";
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -21,15 +21,15 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
       esp_wifi_connect();
       break;
     case WIFI_EVENT_STA_DISCONNECTED:
-      ESP_LOGI(TAG, "Disconnected. Connecting to the AP again...");
+      ESP_LOGI(TAGWIFI, "Disconnected. Connecting to the AP again...");
 
       esp_wifi_connect();
       break;
     case WIFI_EVENT_AP_STACONNECTED:
-      ESP_LOGI(TAG, "SoftAP transport: Connected!");
+      ESP_LOGI(TAGWIFI, "SoftAP transport: Connected!");
       break;
     case WIFI_EVENT_AP_STADISCONNECTED:
-      ESP_LOGI(TAG, "SoftAP transport: Disconnected!");
+      ESP_LOGI(TAGWIFI, "SoftAP transport: Disconnected!");
       break;
     default:
       break;
@@ -38,7 +38,7 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
   else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
   {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-    ESP_LOGI(TAG, "Connected with IP Address:" IPSTR, IP2STR(&event->ip_info.ip));
+    ESP_LOGI(TAGWIFI, "Connected with IP Address:" IPSTR, IP2STR(&event->ip_info.ip));
     /* Signal main application to continue execution */
     xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
   }
@@ -47,13 +47,13 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
     switch (event_id)
     {
     case PROTOCOMM_SECURITY_SESSION_SETUP_OK:
-      ESP_LOGI(TAG, "Secured session established!");
+      ESP_LOGI(TAGWIFI, "Secured session established!");
       break;
     case PROTOCOMM_SECURITY_SESSION_INVALID_SECURITY_PARAMS:
-      ESP_LOGE(TAG, "Received invalid security parameters for establishing secure session!");
+      ESP_LOGE(TAGWIFI, "Received invalid security parameters for establishing secure session!");
       break;
     case PROTOCOMM_SECURITY_SESSION_CREDENTIALS_MISMATCH:
-      ESP_LOGE(TAG, "Received incorrect username and/or PoP for establishing secure session!");
+      ESP_LOGE(TAGWIFI, "Received incorrect username and/or PoP for establishing secure session!");
       break;
     default:
       break;
@@ -64,12 +64,12 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
     switch (event_id)
     {
     case WIFI_PROV_START:
-      ESP_LOGI(TAG, "Provisioning started");
+      ESP_LOGI(TAGWIFI, "Provisioning started");
       break;
     case WIFI_PROV_CRED_RECV:
     {
       wifi_sta_config_t *wifi_sta_cfg = (wifi_sta_config_t *)event_data;
-      ESP_LOGI(TAG, "Received Wi-Fi credentials"
+      ESP_LOGI(TAGWIFI, "Received Wi-Fi credentials"
                     "\n\tSSID     : %s\n\tPassword : %s",
                (const char *)wifi_sta_cfg->ssid,
                (const char *)wifi_sta_cfg->password);
@@ -78,20 +78,20 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
     case WIFI_PROV_CRED_FAIL:
     {
       wifi_prov_sta_fail_reason_t *reason = (wifi_prov_sta_fail_reason_t *)event_data;
-      ESP_LOGE(TAG, "Provisioning failed!\n\tReason : %s"
+      ESP_LOGE(TAGWIFI, "Provisioning failed!\n\tReason : %s"
                     "\n\tPlease reset to factory and retry provisioning",
                (*reason == WIFI_PROV_STA_AUTH_ERROR) ? "Wi-Fi station authentication failed" : "Wi-Fi access-point not found");
       retries++;
       if (retries >= EXAMPLE_ESP_MAXIMUM_RETRY)
       {
-        ESP_LOGI(TAG, "Failed to connect with provisioned AP, reseting provisioned credentials");
+        ESP_LOGI(TAGWIFI, "Failed to connect with provisioned AP, reseting provisioned credentials");
         wifi_prov_mgr_reset_sm_state_on_failure();
         retries = 0;
       }
       break;
     }
     case WIFI_PROV_CRED_SUCCESS:
-      ESP_LOGI(TAG, "Provisioning successful");
+      ESP_LOGI(TAGWIFI, "Provisioning successful");
       retries = 0;
       break;
     case WIFI_PROV_END:
@@ -112,29 +112,29 @@ esp_err_t appiid_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ss
     char appiid[inlen + 1] = "";
     memcpy(appiid, inbuf, inlen);
     appiid[inlen] = '\0';
-    ESP_LOGI(TAG, "Received appid data: %s", appiid);
+    ESP_LOGI(TAGWIFI, "Received appid data: %s", appiid);
 
-    ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
+    ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("settings", NVS_READWRITE, &my_handle);
 
     if (err != ESP_OK)
     {
-      ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+      ESP_LOGE(TAGWIFI, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     }
     else
     {
-      ESP_LOGI(TAG, "Done\n");
+      ESP_LOGI(TAGWIFI, "Done\n");
 
       // Write
       err = nvs_set_str(my_handle, "appiid", appiid);
-      // ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? TAGWIFI, "Failed!\n" : "Done\n");
 
       // Commit written value.
       // After setting any values, nvs_commit() must be called to ensure changes are written
       // to flash storage. Implementations may write to storage at other times,
       // but this is not guaranteed.
-      ESP_LOGI(TAG, "Committing updates in NVS ... ");
+      ESP_LOGI(TAGWIFI, "Committing updates in NVS ... ");
       err = nvs_commit(my_handle);
       // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
@@ -146,7 +146,7 @@ esp_err_t appiid_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ss
   *outbuf = (uint8_t *)strdup(response);
   if (*outbuf == NULL)
   {
-    ESP_LOGE(TAG, "System out of memory");
+    ESP_LOGE(TAGWIFI, "System out of memory");
     return ESP_ERR_NO_MEM;
   }
   *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
@@ -162,29 +162,29 @@ esp_err_t latitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, 
     char lattitude[inlen + 1] = "";
     memcpy(lattitude, inbuf, inlen);
     lattitude[inlen] = '\0';
-    ESP_LOGI(TAG, "Received lattitude data: %s", lattitude);
+    ESP_LOGI(TAGWIFI, "Received lattitude data: %s", lattitude);
 
-    ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
+    ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("settings", NVS_READWRITE, &my_handle);
 
     if (err != ESP_OK)
     {
-      ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+      ESP_LOGE(TAGWIFI, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     }
     else
     {
-      ESP_LOGI(TAG, "Done\n");
+      ESP_LOGI(TAGWIFI, "Done\n");
 
       // Write
       err = nvs_set_str(my_handle, "lattitude", lattitude);
-      // ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? TAGWIFI, "Failed!\n" : "Done\n");
 
       // Commit written value.
       // After setting any values, nvs_commit() must be called to ensure changes are written
       // to flash storage. Implementations may write to storage at other times,
       // but this is not guaranteed.
-      ESP_LOGI(TAG, "Committing updates in NVS ... ");
+      ESP_LOGI(TAGWIFI, "Committing updates in NVS ... ");
       err = nvs_commit(my_handle);
       // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
@@ -196,7 +196,7 @@ esp_err_t latitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, 
   *outbuf = (uint8_t *)strdup(response);
   if (*outbuf == NULL)
   {
-    ESP_LOGE(TAG, "System out of memory");
+    ESP_LOGE(TAGWIFI, "System out of memory");
     return ESP_ERR_NO_MEM;
   }
   *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
@@ -212,29 +212,29 @@ esp_err_t longitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf,
     char longitude[inlen + 1] = "";
     memcpy(longitude, inbuf, inlen);
     longitude[inlen] = '\0';
-    ESP_LOGI(TAG, "Received longitude data: %s", longitude);
+    ESP_LOGI(TAGWIFI, "Received longitude data: %s", longitude);
 
-    ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
+    ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("settings", NVS_READWRITE, &my_handle);
 
     if (err != ESP_OK)
     {
-      ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+      ESP_LOGE(TAGWIFI, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     }
     else
     {
-      ESP_LOGI(TAG, "Done\n");
+      ESP_LOGI(TAGWIFI, "Done\n");
 
       // Write
       err = nvs_set_str(my_handle, "longitude", longitude);
-      // ESP_LOGE((err != ESP_OK) ? TAG, "Failed!\n" : "Done\n");
+      // ESP_LOGE((err != ESP_OK) ? TAGWIFI, "Failed!\n" : "Done\n");
 
       // Commit written value.
       // After setting any values, nvs_commit() must be called to ensure changes are written
       // to flash storage. Implementations may write to storage at other times,
       // but this is not guaranteed.
-      ESP_LOGI(TAG, "Committing updates in NVS ... ");
+      ESP_LOGI(TAGWIFI, "Committing updates in NVS ... ");
       err = nvs_commit(my_handle);
       // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
@@ -246,7 +246,7 @@ esp_err_t longitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf,
   *outbuf = (uint8_t *)strdup(response);
   if (*outbuf == NULL)
   {
-    ESP_LOGE(TAG, "System out of memory");
+    ESP_LOGE(TAGWIFI, "System out of memory");
     return ESP_ERR_NO_MEM;
   }
   *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
@@ -262,19 +262,19 @@ esp_err_t timezone_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, 
     char timezone[inlen + 1] = "";
     memcpy(timezone, inbuf, inlen);
     timezone[inlen] = '\0';
-    ESP_LOGI(TAG, "Received timezone data: %s", timezone);
+    ESP_LOGI(TAGWIFI, "Received timezone data: %s", timezone);
 
-    ESP_LOGI(TAG, "Opening Non-Volatile Storage (NVS) handle... ");
+    ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("settings", NVS_READWRITE, &my_handle);
 
     if (err != ESP_OK)
     {
-      ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+      ESP_LOGE(TAGWIFI, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     }
     else
     {
-      ESP_LOGI(TAG, "Done\n");
+      ESP_LOGI(TAGWIFI, "Done\n");
 
       // Write
       err = nvs_set_str(my_handle, "timezone", timezone);
@@ -284,7 +284,7 @@ esp_err_t timezone_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, 
       // After setting any values, nvs_commit() must be called to ensure changes are written
       // to flash storage. Implementations may write to storage at other times,
       // but this is not guaranteed.
-      ESP_LOGI(TAG, "Committing updates in NVS ... ");
+      ESP_LOGI(TAGWIFI, "Committing updates in NVS ... ");
       err = nvs_commit(my_handle);
       // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
@@ -296,7 +296,7 @@ esp_err_t timezone_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, 
   *outbuf = (uint8_t *)strdup(response);
   if (*outbuf == NULL)
   {
-    ESP_LOGE(TAG, "System out of memory");
+    ESP_LOGE(TAGWIFI, "System out of memory");
     return ESP_ERR_NO_MEM;
   }
   *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
@@ -377,11 +377,11 @@ bool wifi_update_prov_and_connect(bool reset)
 
   bool provisioned = false;
   ESP_ERROR_CHECK(wifi_prov_mgr_is_provisioned(&provisioned));
-  ESP_LOGI(TAG, "WIFI init finished.");
+  ESP_LOGI(TAGWIFI, "WIFI init finished.");
   if (!provisioned)
   {
 
-    ESP_LOGI(TAG, "Starting provisioning");
+    ESP_LOGI(TAGWIFI, "Starting provisioning");
 
     /* What is the Device Service Name that we want
      * This translates to :
@@ -462,7 +462,7 @@ bool wifi_update_prov_and_connect(bool reset)
   }
   else
   {
-    ESP_LOGI(TAG, "Already provisioned, starting Wi-Fi STA");
+    ESP_LOGI(TAGWIFI, "Already provisioned, starting Wi-Fi STA");
     /* We don't need the manager as device is already provisioned,
      * so let's release it's resources */
     wifi_prov_mgr_deinit();
@@ -482,12 +482,12 @@ bool wifi_update_prov_and_connect(bool reset)
    * happened. */
   if (bits & WIFI_CONNECTED_BIT)
   {
-    ESP_LOGI(TAG, "Wifi connected");
+    ESP_LOGI(TAGWIFI, "Wifi connected");
     wifiStatus = true;
   }
   else
   {
-    ESP_LOGE(TAG, "UNEXPECTED EVENT");
+    ESP_LOGE(TAGWIFI, "UNEXPECTED EVENT");
   }
 
   return wifiStatus;
@@ -497,7 +497,7 @@ void wifi_prov_print_qr(const char *name, const char *username, const char *pop,
 {
   if (!name || !transport)
   {
-    ESP_LOGW(TAG, "Cannot generate QR code payload. Data missing.");
+    ESP_LOGW(TAGWIFI, "Cannot generate QR code payload. Data missing.");
     return;
   }
   char payload[150] = {0};
@@ -513,8 +513,8 @@ void wifi_prov_print_qr(const char *name, const char *username, const char *pop,
                                        ",\"transport\":\"%s\"}",
              PROV_QR_VERSION, name, transport);
   }
-  ESP_LOGI(TAG, "Scan this QR code from the provisioning application for Provisioning.");
+  ESP_LOGI(TAGWIFI, "Scan this QR code from the provisioning application for Provisioning.");
   esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
   esp_qrcode_generate(&cfg, payload);
-  ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
+  ESP_LOGI(TAGWIFI, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }

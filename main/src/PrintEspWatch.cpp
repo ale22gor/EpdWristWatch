@@ -108,7 +108,7 @@ void printWeatherDescription(u16_t id)
     }
     else if (id >= 500 && id < 600)
     {
-        display.println("Rain And Sun");
+        display.println("Rain&Sun");
     }
     else if (id >= 600 && id < 700)
     {
@@ -166,31 +166,6 @@ void printWeatherIconMainScr(u16_t id)
     {
         display.drawBitmap(125, 68, LightClouds, 75, 75, GxEPD_BLACK);
     }
-}
-
-void printWeather(uint16_t x, uint16_t y, weatherData weather)
-{
-    display.setPartialWindow(0, 150, 100, 50);
-    display.setTextColor(GxEPD_BLACK);
-    display.setTextSize(3);
-    display.setCursor(0, 150);
-
-    display.firstPage();
-    do
-    {
-        display.fillScreen(GxEPD_WHITE);
-        display.print(weather.temp);
-
-    } while (display.nextPage());
-
-    display.setPartialWindow(125, 68, 75, 75);
-
-    display.firstPage();
-    do
-    {
-        printWeatherIconMainScr(weather.weather);
-
-    } while (display.nextPage());
 }
 
 void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather)
@@ -399,14 +374,37 @@ void printUpdate()
     display.println("Update");
     display.display();
 }
-void printWeather(weatherData weather[])
+void printWeather(weatherData weather[], int pageNumber)
 {
+    int i = 0, maxNumber = 10;
+    if (pageNumber == 0)
+    {
+        i = 0;
+        maxNumber = 10;
+    }
+    else if (pageNumber == 1)
+    {
+        i = 10;
+        maxNumber = 20;
+    }
+    else if (pageNumber == 2)
+    {
+        i = 20;
+        maxNumber = 30;
+    }
+    else if (pageNumber == 3)
+    {
+        i = 30;
+        maxNumber = 40;
+    }
+
+
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     display.setTextSize(2);
     display.setCursor(0, 5);
 
-    for (int i = 0; i < 7; i++)
+    for (; i < maxNumber; i++)
     {
         display.printf("%02d  ", weather[i].time.tm_hour);
         display.print(weather[i].temp);

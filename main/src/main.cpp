@@ -16,7 +16,7 @@
 
 #include "Definitions.h"
 
-const char *weatherDtKey[]{
+const char *weatherDtKey[WEATHERTIMESTUMPS]{
     "weatherDt_1",
     "weatherDt_2",
     "weatherDt_3",
@@ -24,8 +24,41 @@ const char *weatherDtKey[]{
     "weatherDt_5",
     "weatherDt_6",
     "weatherDt_7",
+    "weatherDt_8",
+    "weatherDt_9",
+    "weatherDt_10",
+    "weatherDt_11",
+    "weatherDt_12",
+    "weatherDt_13",
+    "weatherDt_14",
+    "weatherDt_15",
+    "weatherDt_16",
+    "weatherDt_17",
+    "weatherDt_18",
+    "weatherDt_19",
+    "weatherDt_20",
+    "weatherDt_21",
+    "weatherDt_22",
+    "weatherDt_23",
+    "weatherDt_24",
+    "weatherDt_25",
+    "weatherDt_26",
+    "weatherDt_27",
+    "weatherDt_28",
+    "weatherDt_29",
+    "weatherDt_30",
+    "weatherDt_31",
+    "weatherDt_32",
+    "weatherDt_33",
+    "weatherDt_34",
+    "weatherDt_35",
+    "weatherDt_36",
+    "weatherDt_37",
+    "weatherDt_38",
+    "weatherDt_39",
+    "weatherDt_40",
 };
-const char *weatherTempKey[]{
+const char *weatherTempKey[WEATHERTIMESTUMPS]{
     "weatherTemp_1",
     "weatherTemp_2",
     "weatherTemp_3",
@@ -33,8 +66,41 @@ const char *weatherTempKey[]{
     "weatherTemp_5",
     "weatherTemp_6",
     "weatherTemp_7",
+    "weatherTemp_8",
+    "weatherTemp_9",
+    "weatherTemp_10",
+    "weatherTemp_11",
+    "weatherTemp_12",
+    "weatherTemp_13",
+    "weatherTemp_14",
+    "weatherTemp_15",
+    "weatherTemp_16",
+    "weatherTemp_17",
+    "weatherTemp_18",
+    "weatherTemp_19",
+    "weatherTemp_20",
+    "weatherTemp_21",
+    "weatherTemp_22",
+    "weatherTemp_23",
+    "weatherTemp_24",
+    "weatherTemp_25",
+    "weatherTemp_26",
+    "weatherTemp_27",
+    "weatherTemp_28",
+    "weatherTemp_29",
+    "weatherTemp_30",
+    "weatherTemp_31",
+    "weatherTemp_32",
+    "weatherTemp_33",
+    "weatherTemp_34",
+    "weatherTemp_35",
+    "weatherTemp_36",
+    "weatherTemp_37",
+    "weatherTemp_38",
+    "weatherTemp_39",
+    "weatherTemp_40",
 };
-const char *weatherMainKey[]{
+const char *weatherMainKey[WEATHERTIMESTUMPS]{
     "weatherMain_1",
     "weatherMain_2",
     "weatherMain_3",
@@ -42,6 +108,39 @@ const char *weatherMainKey[]{
     "weatherMain_5",
     "weatherMain_6",
     "weatherMain_7",
+    "weatherMain_8",
+    "weatherMain_9",
+    "weatherMain_10",
+    "weatherMain_11",
+    "weatherMain_12",
+    "weatherMain_13",
+    "weatherMain_14",
+    "weatherMain_15",
+    "weatherMain_16",
+    "weatherMain_17",
+    "weatherMain_18",
+    "weatherMain_19",
+    "weatherMain_20",
+    "weatherMain_21",
+    "weatherMain_22",
+    "weatherMain_23",
+    "weatherMain_24",
+    "weatherMain_25",
+    "weatherMain_26",
+    "weatherMain_27",
+    "weatherMain_28",
+    "weatherMain_29",
+    "weatherMain_30",
+    "weatherMain_31",
+    "weatherMain_32",
+    "weatherMain_33",
+    "weatherMain_34",
+    "weatherMain_35",
+    "weatherMain_36",
+    "weatherMain_37",
+    "weatherMain_38",
+    "weatherMain_39",
+    "weatherMain_40",
 };
 
 #define PIN_MOTOR 4
@@ -54,13 +153,17 @@ struct tm timeinfo = {0};
 struct tm sunriseTm = {0};
 struct tm sunsetTm = {0};
 
-struct weatherData weather = {.weather = 0, .temp = 0, .time = 0};
+weatherData weatherArray[WEATHERTIMESTUMPS];
+int weatherScreenPage = 0;
+int currentweatherIndex = 0;
 
-const char *TAG = "epd watch";
+const char *TAG = "EPDWatchMain";
+const int weatherTimestumps = 40;
 
 void UpdateTimeCallback(void *parameter);
 void SyncDataCallback(void *parameter);
 void TaskPrintScreen(void *pvParameters);
+void GetWeatherFromNVS();
 
 void MenuSwitchNext();
 
@@ -167,6 +270,7 @@ void TaskWifiUpdateData(void *pvParameters)
           {
             UpdateNtpTime();
             GET_Request();
+            GetWeatherFromNVS();
           }
           wifi_disconnect();
           time_t now = time(nullptr);
@@ -188,6 +292,7 @@ void TaskWifiUpdateData(void *pvParameters)
           {
             UpdateNtpTime();
             GET_Request();
+            GetWeatherFromNVS();
           }
           wifi_disconnect();
           time_t now = time(nullptr);
@@ -237,13 +342,33 @@ void TaskWifiUpdateData(void *pvParameters)
     }
     else if (currScreenState == WeatherScreen)
     {
-      time_t now = time(nullptr);
-      localtime_r(&now, &timeinfo);
-      if (xTaskNotify(xTskPrintScrNotify,
-                      MAIN_SCR_PRINT,
-                      eSetValueWithoutOverwrite) == pdPASS)
+
+      vTaskDelay(200);
+      if (gpio_get_level(GPIO_NUM_35) == 0)
       {
-        currScreenState = MainScreen;
+        time_t now = time(nullptr);
+        localtime_r(&now, &timeinfo);
+        if (xTaskNotify(xTskPrintScrNotify,
+                        MAIN_SCR_PRINT,
+                        eSetValueWithoutOverwrite) == pdPASS)
+        {
+          currScreenState = MainScreen;
+          weatherScreenPage = 0;
+        }
+      }
+      else
+      {
+        if (weatherScreenPage >= 3)
+        {
+          weatherScreenPage = 0;
+        }
+        else
+        {
+          weatherScreenPage++;
+        }
+        xTaskNotify(xTskPrintScrNotify,
+                    PRINT_WEATHER_SCR,
+                    eSetValueWithoutOverwrite);
       }
     }
 
@@ -268,8 +393,7 @@ void GetWeatherFromNVS()
 
     // Example of listing all the key-value pairs of any type under specified handle (which defines a partition and namespace)
 
-    struct weatherData weatherArray[7];
-    for (int i = 0; i < 7; i++)
+    for (int i = 0; i < WEATHERTIMESTUMPS; i++)
     {
       int64_t dt;
       err = nvs_get_i64(my_handle, weatherDtKey[i], &dt);
@@ -277,50 +401,25 @@ void GetWeatherFromNVS()
       nvs_get_i8(my_handle, weatherTempKey[i], &weatherArray[i].temp);
       nvs_get_u16(my_handle, weatherMainKey[i], &weatherArray[i].weather);
     }
-    printWeather(weatherArray);
   }
 
   nvs_close(my_handle);
 }
 
-void UpdateWeatherFromNVS()
+int FindWeatherIndex()
 {
-  nvs_handle_t my_handle;
-  esp_err_t err = nvs_open("weather", NVS_READONLY, &my_handle);
-  if (err != ESP_OK)
+
+  for (int i = 0; i < WEATHERTIMESTUMPS; i++)
   {
-    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-  }
-  else
-  {
-    ESP_LOGI(TAG, "Done\n");
-
-    ESP_LOGI(TAG, "Reading weather data from NVS ... ");
-
-    // Example of listing all the key-value pairs of any type under specified handle (which defines a partition and namespace)
-
-    for (int i = 0; i < 7; i++)
+    time_t dt = mktime(&weatherArray[i].time);
+    int64_t currTime = time(nullptr);
+    if (dt - 10800 < currTime && dt > currTime)
     {
-      int64_t dt;
-      err = nvs_get_i64(my_handle, weatherDtKey[i], &dt);
-      if (err == ESP_OK)
-      {
-        ESP_LOGI(TAG, "Done\n");
-        int64_t currTime = time(nullptr);
-        if (dt - 10800 < currTime && dt > currTime)
-        {
-          nvs_get_i8(my_handle, weatherTempKey[i], &weather.temp);
-          nvs_get_u16(my_handle, weatherMainKey[i], &weather.weather);
-          break;
-        }
-      }
-      else
-      {
-        break;
-      }
+      return i;
     }
   }
-  nvs_close(my_handle);
+
+  return -1;
 }
 
 void UpdateLocationFromNVS()
@@ -466,6 +565,20 @@ extern "C" void app_main()
 
   vTaskDelay(100);
 
+  GetWeatherFromNVS();
+
+  int i = FindWeatherIndex();
+  if (i >= 0)
+  {
+    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
+  }
+  else
+  {
+    struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
+    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
+  }
+  hibernateDisplay();
+
   esp_timer_create_args_t configMinuteClockTimer = {
       .callback = UpdateTimeCallback,
       .arg = NULL,
@@ -478,6 +591,10 @@ extern "C" void app_main()
 
   xTaskCreate(&TaskPrintScreen, "Task_UpdateTime", 8192, NULL, 2, &xTskPrintScrNotify);
   esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
+
+  esp_sleep_enable_gpio_wakeup();
+
+  gpio_wakeup_enable(GPIO_NUM_35, GPIO_INTR_LOW_LEVEL);
 
   esp_pm_config_t pm_config = {
       .max_freq_mhz = 160,
@@ -500,17 +617,6 @@ void UpdateTimeCallback(void *parameter)
 
 void TaskPrintScreen(void *parameter)
 {
-  // tm sunrise, sunset;
-
-  UpdateWeatherFromNVS();
-
-  initDisplayText(timeinfo, sunriseTm, sunsetTm, weather);
-  hibernateDisplay();
-
-  esp_sleep_enable_gpio_wakeup();
-
-  gpio_wakeup_enable(GPIO_NUM_35, GPIO_INTR_LOW_LEVEL);
-
   uint32_t ulNotifiedValue;
 
   while (true)
@@ -534,8 +640,16 @@ void TaskPrintScreen(void *parameter)
 
       if (timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0)
       {
-        UpdateWeatherFromNVS();
-        printWeather(20, 5, weather);
+        int i = FindWeatherIndex();
+        if (i >= 0)
+        {
+          initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
+        }
+        else
+        {
+          struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
+          initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
+        }
       }
 
       if (timeinfo.tm_min % 5 == 0)
@@ -553,9 +667,16 @@ void TaskPrintScreen(void *parameter)
     else if (ulNotifiedValue == MAIN_SCR_PRINT)
     {
       UpdateLocationFromNVS();
-      UpdateWeatherFromNVS();
-
-      initDisplayText(timeinfo, sunriseTm, sunsetTm, weather);
+      int i = FindWeatherIndex();
+      if (i >= 0)
+      {
+        initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
+      }
+      else
+      {
+        struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
+        initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
+      }
     }
     else if (ulNotifiedValue == MENU_PRINT)
     {
@@ -575,7 +696,7 @@ void TaskPrintScreen(void *parameter)
     }
     else if (ulNotifiedValue == PRINT_WEATHER_SCR)
     {
-      GetWeatherFromNVS();
+      printWeather(weatherArray, weatherScreenPage);
     }
   }
 }

@@ -1,6 +1,6 @@
 #include "SntpEspWatch.h"
 
-extern const char *TAG;
+const char *TAGSNTP = "EPDWatchSNTP";
 
 void UpdateNtpTime()
 {
@@ -12,7 +12,7 @@ void UpdateNtpTime()
 
   while (esp_netif_sntp_sync_wait(2000 / portTICK_PERIOD_MS) != ESP_OK && ++retry < retry_count)
   {
-    ESP_LOGI(TAG, "Getting Time");
+    ESP_LOGI(TAGSNTP, "Getting Time");
     vTaskDelay(1000);
   }
   esp_netif_sntp_deinit();

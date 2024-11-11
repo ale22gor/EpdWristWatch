@@ -19,7 +19,6 @@ void printHour(uint16_t x, uint16_t y,tm timeinfo);
 void printMinute(uint16_t x, uint16_t y,tm timeinfo);
 void printDate(uint16_t x, uint16_t y,tm timeinfo);
 void printPower(int voltage, uint16_t x, uint16_t y);
-void printWeather(uint16_t x, uint16_t y, weatherData weather);
 void initDisplayText(tm timeinfo, tm sunrise, tm sunset,weatherData weather);
 void initDisplay();
 void hibernateDisplay();
@@ -27,5 +26,5 @@ void displayMenu();
 void printProvAndUpdate();
 void printUpdate();
 void updateMenu(int menuNumber);
-void printWeather(weatherData weather[]);
+void printWeather(weatherData weather[],int pageNumber);
 #endif /* PRINTESPWATCH_H */

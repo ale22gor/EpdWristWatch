@@ -16,8 +16,6 @@
 #define EPD_BUSY 16
 
 void printHour(uint16_t x, uint16_t y,tm timeinfo);
-void printMinute(uint16_t x, uint16_t y,tm timeinfo);
-void printDate(uint16_t x, uint16_t y,tm timeinfo);
 void printPower(int voltage, uint16_t x, uint16_t y);
 void initDisplayText(tm timeinfo, tm sunrise, tm sunset,weatherData weather);
 void initDisplay();

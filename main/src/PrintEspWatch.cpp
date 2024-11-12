@@ -23,41 +23,6 @@ void printHour(uint16_t x, uint16_t y, tm timeinfo)
     } while (display.nextPage());
 }
 
-void printMinute(uint16_t x, uint16_t y, tm timeinfo)
-{
-    display.setTextColor(GxEPD_BLACK);
-    display.setTextSize(7);
-    display.setPartialWindow(x, y, 80, 50);
-    display.firstPage();
-    do
-    {
-        display.setCursor(x, y);
-        display.fillScreen(GxEPD_WHITE);
-        display.printf("%02d", timeinfo.tm_min);
-    } while (display.nextPage());
-}
-
-void printDate(uint16_t x, uint16_t y, tm timeinfo)
-{
-    display.setTextColor(GxEPD_BLACK);
-    display.setPartialWindow(0, 70, 70, 75);
-    display.firstPage();
-
-    do
-    {
-        display.fillScreen(GxEPD_WHITE);
-        display.setTextSize(3);
-        display.setCursor(17, 70);
-        display.println(&timeinfo, "%a");
-        display.println(&timeinfo, "%d");
-        display.print(&timeinfo, "%Y");
-
-        display.setCursor(35, 95);
-        display.setTextSize(2);
-        display.print(&timeinfo, "%b");
-    } while (display.nextPage());
-}
-
 void printPower(int voltage, uint16_t x, uint16_t y)
 {
 
@@ -170,6 +135,7 @@ void printWeatherIconMainScr(u16_t id)
 
 void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather)
 {
+    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     // display.setTextWrap(false);
@@ -397,7 +363,6 @@ void printWeather(weatherData weather[], int pageNumber)
         i = 30;
         maxNumber = 40;
     }
-
 
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);

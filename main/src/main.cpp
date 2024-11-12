@@ -164,8 +164,10 @@ void UpdateTimeCallback(void *parameter);
 void SyncDataCallback(void *parameter);
 void TaskPrintScreen(void *pvParameters);
 void GetWeatherFromNVS();
+void UpdateLocationFromNVS();
 
 void MenuSwitchNext();
+void FullScreenPrint();
 
 esp_timer_handle_t buttonTimer;
 
@@ -271,6 +273,7 @@ void TaskWifiUpdateData(void *pvParameters)
             UpdateNtpTime();
             GET_Request();
             GetWeatherFromNVS();
+            UpdateLocationFromNVS();
           }
           wifi_disconnect();
           time_t now = time(nullptr);
@@ -293,6 +296,7 @@ void TaskWifiUpdateData(void *pvParameters)
             UpdateNtpTime();
             GET_Request();
             GetWeatherFromNVS();
+            UpdateLocationFromNVS();
           }
           wifi_disconnect();
           time_t now = time(nullptr);
@@ -567,16 +571,7 @@ extern "C" void app_main()
 
   GetWeatherFromNVS();
 
-  int i = FindWeatherIndex();
-  if (i >= 0)
-  {
-    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
-  }
-  else
-  {
-    struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
-    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
-  }
+  FullScreenPrint();
   hibernateDisplay();
 
   esp_timer_create_args_t configMinuteClockTimer = {
@@ -632,51 +627,26 @@ void TaskPrintScreen(void *parameter)
     if (ulNotifiedValue == MINUTE_PRINT_UPD_MAIN_SCR && currScreenState == MainScreen)
     {
 
-      if (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0)
+      if ((timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0) || (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0))
       {
-        printDate(0, 70, timeinfo);
+        FullScreenPrint();
       }
-      printHour(7, 0, timeinfo);
-
-      if (timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0)
+      else if (timeinfo.tm_min % 5 == 0)
       {
-        int i = FindWeatherIndex();
-        if (i >= 0)
-        {
-          initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
-        }
-        else
-        {
-          struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
-          initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
-        }
-      }
-
-      if (timeinfo.tm_min % 5 == 0)
-      {
-
-        powerInit();
-        int voltage = powerMeasure();
-        printPower(voltage, 130, 150);
-        stopPowerMeasure();
-      }
-
-      hibernateDisplay();
-      vTaskDelay(250);
-    }
-    else if (ulNotifiedValue == MAIN_SCR_PRINT)
-    {
-      UpdateLocationFromNVS();
-      int i = FindWeatherIndex();
-      if (i >= 0)
-      {
-        initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
+         powerInit();
+         int voltage = powerMeasure();
+         printPower(voltage, 130, 150);
+         stopPowerMeasure();
+         printHour(7, 0, timeinfo);
       }
       else
       {
-        struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
-        initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
+        printHour(7, 0, timeinfo);
       }
+    }
+    else if (ulNotifiedValue == MAIN_SCR_PRINT)
+    {
+      FullScreenPrint();
     }
     else if (ulNotifiedValue == MENU_PRINT)
     {
@@ -698,6 +668,8 @@ void TaskPrintScreen(void *parameter)
     {
       printWeather(weatherArray, weatherScreenPage);
     }
+    hibernateDisplay();
+    vTaskDelay(250);
   }
 }
 
@@ -727,5 +699,19 @@ void MenuSwitchNext()
   break;
   default:
     break;
+  }
+}
+
+void FullScreenPrint()
+{
+  int i = FindWeatherIndex();
+  if (i >= 0)
+  {
+    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
+  }
+  else
+  {
+    struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
+    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
   }
 }

@@ -161,7 +161,7 @@ const char *TAG = "EPDWatchMain";
 const int weatherTimestumps = 40;
 
 void UpdateTimeCallback(void *parameter);
-void SyncDataCallback(void *parameter);
+void TaskUpdateData(void *parameter);
 void TaskPrintScreen(void *pvParameters);
 void GetWeatherFromNVS();
 void UpdateLocationFromNVS();
@@ -179,9 +179,12 @@ esp_timer_handle_t buttonTimer;
 #define PRINT_UPD_SCR BIT5
 #define PRINT_WEATHER_SCR BIT6
 
+#define PROV_AND_UPDATE BIT1
+#define JUST_UPDATE BIT2
+
 /* Stores the handle of the task that will be notified when the
    transmission is complete. */
-static TaskHandle_t xTskPrintScrNotify = NULL, xTskMenuToNotify = NULL;
+static TaskHandle_t xTskPrintScrNotify = NULL, xTskButtonHandlerNotify = NULL, xTskUpdateDataNotify = NULL;
 
 enum menuState
 {
@@ -214,7 +217,6 @@ static void IRAM_ATTR isrButtonPress(void *arg)
 {
   gpio_intr_disable(GPIO_NUM_35);
   esp_timer_start_once(buttonTimer, 2000000);
-  esp_timer_stop(minuteClockTimer);
 
   // Переменные для переключения контекста
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -223,7 +225,7 @@ static void IRAM_ATTR isrButtonPress(void *arg)
   // bool pressed = true;
   // Отправляем в очередь задачи событие "кнопка нажата"
   // xResult = xQueueSendFromISR(button_queue, &pressed, &xHigherPriorityTaskWoken);
-  vTaskNotifyGiveFromISR(xTskMenuToNotify,
+  vTaskNotifyGiveFromISR(xTskButtonHandlerNotify,
                          &xHigherPriorityTaskWoken);
 
   // Если высокоприоритетная задача ждет этого события, переключаем управление
@@ -235,7 +237,7 @@ static void IRAM_ATTR isrButtonPress(void *arg)
 }
 
 // Функция задачи светодиода
-void TaskWifiUpdateData(void *pvParameters)
+void TaskButtonHandler(void *pvParameters)
 {
 
   while (1)
@@ -243,6 +245,8 @@ void TaskWifiUpdateData(void *pvParameters)
     // Ждем события нажатия кнопки в очереди
     ulTaskNotifyTake(pdTRUE,
                      portMAX_DELAY);
+
+    esp_timer_stop(minuteClockTimer);
 
     ESP_LOGI(TAG, "Button is pressed");
 
@@ -265,7 +269,7 @@ void TaskWifiUpdateData(void *pvParameters)
         {
         case ProvAndUpdate:
         {
-          xTaskNotify(xTskPrintScrNotify,
+         xTaskNotify(xTskPrintScrNotify,
                       PRINT_PROV_AND_UPD_SCR,
                       eSetValueWithoutOverwrite);
           if (wifi_update_prov_and_connect(true))
@@ -288,6 +292,7 @@ void TaskWifiUpdateData(void *pvParameters)
         break;
         case Update:
         {
+
           xTaskNotify(xTskPrintScrNotify,
                       PRINT_UPD_SCR,
                       eSetValueWithoutOverwrite);
@@ -535,7 +540,7 @@ extern "C" void app_main()
   // ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
   wifi_setDefaults();
 
-  xTaskCreate(&TaskWifiUpdateData, "Task_WifiUpdateData", 8192, NULL, 3, &xTskMenuToNotify);
+  xTaskCreate(&TaskButtonHandler, "Task_ButtonHandler", 8192, NULL, 3, &xTskButtonHandlerNotify);
 
   gpio_reset_pin(GPIO_NUM_35);
   // gpio_pad_select_gpio(GPIO_NUM_35);
@@ -584,7 +589,9 @@ extern "C" void app_main()
 
   esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
 
-  xTaskCreate(&TaskPrintScreen, "Task_UpdateTime", 8192, NULL, 2, &xTskPrintScrNotify);
+  xTaskCreate(&TaskPrintScreen, "Task_PrintScreen", 8192, NULL, 2, &xTskPrintScrNotify);
+  //xTaskCreate(&TaskUpdateData, "Task_UpdateData", 8192, NULL, 3, &xTskUpdateDataNotify);
+
   esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
 
   esp_sleep_enable_gpio_wakeup();
@@ -633,11 +640,11 @@ void TaskPrintScreen(void *parameter)
       }
       else if (timeinfo.tm_min % 5 == 0)
       {
-         powerInit();
-         int voltage = powerMeasure();
-         printPower(voltage, 130, 150);
-         stopPowerMeasure();
-         printHour(7, 0, timeinfo);
+        powerInit();
+        int voltage = powerMeasure();
+        printPower(voltage, 130, 150);
+        stopPowerMeasure();
+        printHour(7, 0, timeinfo);
       }
       else
       {
@@ -713,5 +720,50 @@ void FullScreenPrint()
   {
     struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
     initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
+  }
+}
+
+void TaskUpdateData(void *parameter)
+{
+  uint32_t ulNotifiedValue;
+
+  while (1)
+  {
+
+    xTaskNotifyWait(0x00,             /* Don't clear any notification bits on entry. */
+                    ULONG_MAX,        /* Reset the notification value to 0 on exit. */
+                    &ulNotifiedValue, /* Notified value pass out in
+                                         ulNotifiedValue. */
+                    portMAX_DELAY);
+
+    ESP_LOGI(TAG, "Update data task");
+
+    if (ulNotifiedValue == PROV_AND_UPDATE)
+    {
+      if (wifi_update_prov_and_connect(true))
+      {
+        UpdateNtpTime();
+        GET_Request();
+        GetWeatherFromNVS();
+        UpdateLocationFromNVS();
+      }
+    }
+    else if (ulNotifiedValue == JUST_UPDATE)
+    {
+      if (wifi_update_prov_and_connect(false))
+      {
+        UpdateNtpTime();
+        GET_Request();
+        GetWeatherFromNVS();
+        UpdateLocationFromNVS();
+      }
+    }
+          wifi_disconnect();
+
+    time_t now = time(nullptr);
+    localtime_r(&now, &timeinfo);
+
+    xTaskNotifyGiveIndexed(xTskButtonHandlerNotify,
+                           1);
   }
 }

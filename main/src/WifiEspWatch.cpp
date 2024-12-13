@@ -70,7 +70,7 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
       wifi_sta_config_t *wifi_sta_cfg = (wifi_sta_config_t *)event_data;
       ESP_LOGI(TAGWIFI, "Received Wi-Fi credentials"
-                    "\n\tSSID     : %s\n\tPassword : %s",
+                        "\n\tSSID     : %s\n\tPassword : %s",
                (const char *)wifi_sta_cfg->ssid,
                (const char *)wifi_sta_cfg->password);
       break;
@@ -79,7 +79,7 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
       wifi_prov_sta_fail_reason_t *reason = (wifi_prov_sta_fail_reason_t *)event_data;
       ESP_LOGE(TAGWIFI, "Provisioning failed!\n\tReason : %s"
-                    "\n\tPlease reset to factory and retry provisioning",
+                        "\n\tPlease reset to factory and retry provisioning",
                (*reason == WIFI_PROV_STA_AUTH_ERROR) ? "Wi-Fi station authentication failed" : "Wi-Fi access-point not found");
       retries++;
       if (retries >= EXAMPLE_ESP_MAXIMUM_RETRY)
@@ -324,30 +324,26 @@ void wifi_disconnect(void)
 {
   // vEventGroupDelete(s_wifi_event_group);
   ESP_ERROR_CHECK(esp_wifi_stop());
-  ESP_ERROR_CHECK(esp_wifi_deinit());
-  /* The event will not be processed after unregister */
-  ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler));
-  ESP_ERROR_CHECK(esp_event_handler_unregister(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler));
-  ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler));
-  ESP_ERROR_CHECK(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler));
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_NULL));
 }
 
 void wifi_setDefaults()
 {
+
   s_wifi_event_group = xEventGroupCreate();
 
   esp_netif_create_default_wifi_sta();
   esp_netif_create_default_wifi_ap();
 
-  // esp_netif_ip_info_t ip_info = {};
-  // esp_netif_set_ip4_addr(&ip_info.ip, 10, 1, 2, 1); // ludite friendly IP address
-  // esp_netif_set_ip4_addr(&ip_info.gw, 10, 1, 2, 1);
-  // esp_netif_set_ip4_addr(&ip_info.netmask, 255, 255, 255, 0);
+  ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+  ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+  ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+  ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
 
-  // esp_netif_dns_info_t dns;
-  // IP_ADDR4(&dns.ip, 8, 8, 8, 8);
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-  // dhcps_offer_t dhcps_dns_value = OFFER_DNS;
+
 
   // ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(p_netif));
   // ESP_ERROR_CHECK(esp_netif_set_ip_info(p_netif, &ip_info));
@@ -358,19 +354,12 @@ void wifi_setDefaults()
 bool wifi_update_prov_and_connect(bool reset)
 {
 
-  bool wifiStatus = false;
-
-  ESP_ERROR_CHECK(esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
-  ESP_ERROR_CHECK(esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
-  ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
-  ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
-
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
   wifi_prov_mgr_config_t config = {
       .scheme = wifi_prov_scheme_softap,
       .scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE};
   ESP_ERROR_CHECK(wifi_prov_mgr_init(config));
+
+  bool wifiStatus = false;
 
   if (reset)
     ESP_ERROR_CHECK(wifi_prov_mgr_reset_provisioning());

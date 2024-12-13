@@ -269,9 +269,17 @@ void TaskButtonHandler(void *pvParameters)
         {
         case ProvAndUpdate:
         {
-         xTaskNotify(xTskPrintScrNotify,
+          xTaskNotify(xTskPrintScrNotify,
                       PRINT_PROV_AND_UPD_SCR,
                       eSetValueWithoutOverwrite);
+
+          // xTaskNotify(xTskUpdateDataNotify,
+          //             PROV_AND_UPDATE,
+          //             eSetValueWithoutOverwrite);
+
+          // ulTaskNotifyTakeIndexed(1, pdTRUE,
+          //                         portMAX_DELAY);
+
           if (wifi_update_prov_and_connect(true))
           {
             UpdateNtpTime();
@@ -279,9 +287,12 @@ void TaskButtonHandler(void *pvParameters)
             GetWeatherFromNVS();
             UpdateLocationFromNVS();
           }
+
           wifi_disconnect();
+
           time_t now = time(nullptr);
           localtime_r(&now, &timeinfo);
+
           if (xTaskNotify(xTskPrintScrNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
@@ -296,6 +307,14 @@ void TaskButtonHandler(void *pvParameters)
           xTaskNotify(xTskPrintScrNotify,
                       PRINT_UPD_SCR,
                       eSetValueWithoutOverwrite);
+
+          // xTaskNotify(xTskUpdateDataNotify,
+          //             JUST_UPDATE,
+          //             eSetValueWithoutOverwrite);
+
+          // ulTaskNotifyTakeIndexed(1, pdTRUE,
+          //                         portMAX_DELAY);
+
           if (wifi_update_prov_and_connect(false))
           {
             UpdateNtpTime();
@@ -303,9 +322,12 @@ void TaskButtonHandler(void *pvParameters)
             GetWeatherFromNVS();
             UpdateLocationFromNVS();
           }
+
           wifi_disconnect();
+
           time_t now = time(nullptr);
           localtime_r(&now, &timeinfo);
+
           if (xTaskNotify(xTskPrintScrNotify,
                           MAIN_SCR_PRINT,
                           eSetValueWithoutOverwrite) == pdPASS)
@@ -589,8 +611,8 @@ extern "C" void app_main()
 
   esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
 
-  xTaskCreate(&TaskPrintScreen, "Task_PrintScreen", 8192, NULL, 2, &xTskPrintScrNotify);
-  //xTaskCreate(&TaskUpdateData, "Task_UpdateData", 8192, NULL, 3, &xTskUpdateDataNotify);
+  xTaskCreate(&TaskPrintScreen, "Task_PrintScreen", 6144, NULL, 2, &xTskPrintScrNotify);
+  // xTaskCreate(&TaskUpdateData, "Task_UpdateData", 10240, NULL, 3, &xTskUpdateDataNotify);
 
   esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
 
@@ -727,6 +749,9 @@ void TaskUpdateData(void *parameter)
 {
   uint32_t ulNotifiedValue;
 
+  // ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+  wifi_setDefaults();
+
   while (1)
   {
 
@@ -735,6 +760,8 @@ void TaskUpdateData(void *parameter)
                     &ulNotifiedValue, /* Notified value pass out in
                                          ulNotifiedValue. */
                     portMAX_DELAY);
+
+    vTaskDelay(2000);
 
     ESP_LOGI(TAG, "Update data task");
 
@@ -758,7 +785,7 @@ void TaskUpdateData(void *parameter)
         UpdateLocationFromNVS();
       }
     }
-          wifi_disconnect();
+    wifi_disconnect();
 
     time_t now = time(nullptr);
     localtime_r(&now, &timeinfo);

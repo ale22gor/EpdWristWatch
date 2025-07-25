@@ -1,5 +1,8 @@
 build/
-components/*
+components/Adafruit_BusIO/*
+components/Adafruit-GFX-Library/*
+components/arduino/*
+components/GxEPD2/*
 managed_components/
 tools/esp_prov/*
 sdkconfig

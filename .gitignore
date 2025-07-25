@@ -1,5 +1,7 @@
 build/
 components/
 managed_components/
+tools/*
+!tools/esp_prov.py
 sdkconfig
 sdkconfig.old

@@ -65,7 +65,7 @@ void printWeatherDescription(u16_t id)
 {
     if (id >= 200 && id < 300)
     {
-        display.println("Thunder");
+        display.println("Thndr");
     }
     else if (id >= 300 && id < 400)
     {
@@ -73,11 +73,11 @@ void printWeatherDescription(u16_t id)
     }
     else if (id >= 500 && id < 600)
     {
-        display.println("Rain&Sun");
+        display.println("Rn&Sn");
     }
     else if (id >= 600 && id < 700)
     {
-        display.println("Snow");
+        display.println("Snw");
     }
     else if (id >= 700 && id < 800)
     {
@@ -85,15 +85,15 @@ void printWeatherDescription(u16_t id)
     }
     else if (id == 800)
     {
-        display.println("Clear");
+        display.println("Clr");
     }
     else if (id >= 800 && id < 804)
     {
-        display.println("Clouds");
+        display.println("Cld");
     }
     else
     {
-        display.println("lt Clouds");
+        display.println("sCld");
     }
 }
 
@@ -371,7 +371,7 @@ void printWeather(weatherData weather[], int pageNumber)
 
     for (; i < maxNumber; i++)
     {
-        display.printf("%02d  ", weather[i].time.tm_hour);
+        display.print(&(weather[i].time),"%d %H ");
         display.print(weather[i].temp);
         display.print("c ");
         printWeatherDescription(weather[i].weather);

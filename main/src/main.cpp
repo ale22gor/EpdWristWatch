@@ -525,7 +525,7 @@ extern "C" void app_main()
   Serial.setDebugOutput(true);
 
   // Set timezone
-  setenv("TZ", "MSK-3", 1);
+  setenv("TZ", "MSK-2", 1);
   tzset();
   time_t now = time(nullptr);
   localtime_r(&now, &timeinfo);

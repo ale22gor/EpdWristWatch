@@ -1,5 +1,5 @@
 build/
-components/
+components/*
 managed_components/
 tools/esp_prov/*
 sdkconfig

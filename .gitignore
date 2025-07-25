@@ -1,7 +1,8 @@
 build/
 components/
 managed_components/
-tools/*
-!tools/esp_prov.py
+tools/esp_prov/*
+!tools/esp_prov/esp_prov.py
 sdkconfig
 sdkconfig.old
+dependencies.lock

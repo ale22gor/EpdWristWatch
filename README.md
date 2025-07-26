@@ -14,7 +14,7 @@ idf_component_register(SRCS "Adafruit_I2CDevice.cpp" "Adafruit_BusIO_Register.cp
 project(Adafruit_BusIO)
 ```
 
-###components/Adafruit-GFX-Library/CMakeLists.txt
+### components/Adafruit-GFX-Library/CMakeLists.txt
 
 ```
 # Adafruit GFX Library
@@ -29,7 +29,7 @@ idf_component_register(SRCS "Adafruit_GFX.cpp" "Adafruit_GrayOLED.cpp" "Adafruit
 project(Adafruit-GFX-Library)
 ```
 
-###components/GxEPD2/CMakeLists.txt
+### components/GxEPD2/CMakeLists.txt
 ```
 FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/components/GxEPD2/src/*.cpp)
 

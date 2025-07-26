@@ -1,5 +1,7 @@
 # EpdWristWatch
 
+My just for fun project of Wrist-E-Paper lilygo watch
+
 ## Arduino libraries cmake files
 
 ### components/Adafruit_BusIO/CMakeLists.txt

@@ -1,6 +1,7 @@
 # EpdWristWatch
 
-components/Adafruit_BusIO/CMakeLists.txt
+### components/Adafruit_BusIO/CMakeLists.txt
+```
 # Adafruit Bus IO Library
 # https://github.com/adafruit/Adafruit_BusIO
 # MIT License
@@ -11,9 +12,11 @@ idf_component_register(SRCS "Adafruit_I2CDevice.cpp" "Adafruit_BusIO_Register.cp
                        INCLUDE_DIRS "."
                        REQUIRES arduino)
 project(Adafruit_BusIO)
+```
 
-!components/Adafruit-GFX-Library/CMakeLists.txt
+###components/Adafruit-GFX-Library/CMakeLists.txt
 
+```
 # Adafruit GFX Library
 # https://github.com/adafruit/Adafruit-GFX-Library
 # BSD License
@@ -24,11 +27,13 @@ idf_component_register(SRCS "Adafruit_GFX.cpp" "Adafruit_GrayOLED.cpp" "Adafruit
                        INCLUDE_DIRS "."
                        REQUIRES arduino Adafruit_BusIO)
 project(Adafruit-GFX-Library)
+```
 
-components/GxEPD2/CMakeLists.txt
-
+###components/GxEPD2/CMakeLists.txt
+```
 FILE(GLOB_RECURSE app_sources ${CMAKE_SOURCE_DIR}/components/GxEPD2/src/*.cpp)
 
 idf_component_register(SRCS ${app_sources}
                        INCLUDE_DIRS "src"
                        REQUIRES arduino Adafruit-GFX-Library Adafruit_BusIO)
+```

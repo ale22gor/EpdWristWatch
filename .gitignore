@@ -1,11 +1,10 @@
 build/
-
+dependencies.lock
 managed_components/
 tools/esp_prov/*
 !tools/esp_prov/esp_prov.py
 sdkconfig
 sdkconfig.old
-dependencies.lock
 components/*
 !components/Adafruit_BusIO/
 components/Adafruit_BusIO/*

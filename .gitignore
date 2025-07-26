@@ -11,5 +11,6 @@ components/Adafruit-GFX-Library/*
 !components/Adafruit-GFX-Library/CMakeLists.txt
 components/GxEPD2/*
 !components/GxEPD2/CMakeLists.txt
+components/arduino/
 sdkconfig
 sdkconfig.old

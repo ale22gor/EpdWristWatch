@@ -5,12 +5,6 @@ dependencies.lock
 managed_components/
 tools/esp_prov/*
 !tools/esp_prov/esp_prov.py
-components/Adafruit_BusIO/*
-!components/Adafruit_BusIO/CMakeLists.txt
-components/Adafruit-GFX-Library/*
-!components/Adafruit-GFX-Library/CMakeLists.txt
-components/GxEPD2/*
-!components/GxEPD2/CMakeLists.txt
-components/arduino/
+components/*
 sdkconfig
 sdkconfig.old

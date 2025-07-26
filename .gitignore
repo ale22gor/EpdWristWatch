@@ -7,11 +7,6 @@ tools/esp_prov/*
 !tools/esp_prov/esp_prov.py
 sdkconfig
 sdkconfig.old
-components/*
-!components/Adafruit_BusIO/
-!components/Adafruit-GFX-Library/
-!components/arduino/
-!components/GxEPD2/
 components/Adafruit_BusIO/*
 !components/Adafruit_BusIO/CMakeLists.txt
 components/Adafruit-GFX-Library/*

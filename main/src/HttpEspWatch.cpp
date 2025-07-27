@@ -125,11 +125,26 @@ void GET_Request()
     ESP_LOGI(TAGHTTP, "Done\n");
 
     // Read
-    ESP_LOGI(TAGHTTP, "Reading   lattitude & longtitude from NVS ... ");
-    size_t required_size = 6;
+    ESP_LOGI(TAGHTTP, "Reading   lattitude from NVS ... ");
+    size_t required_size;
+    err = nvs_get_str(my_handle, "lattitude", NULL, &required_size);
+
+    switch (err)
+    {
+    case ESP_OK:
+      ESP_LOGI(TAGHTTP, "Done\n");
+      break;
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAGHTTP, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAGHTTP, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+
     size_t required_summary_size = required_size;
 
-    char lattitude[required_size] = "";
+    char* lattitude = (char*)malloc(required_size);
+
     err = nvs_get_str(my_handle, "lattitude", lattitude, &required_size);
 
     switch (err)
@@ -145,10 +160,24 @@ void GET_Request()
     }
 
     ESP_LOGI(TAGHTTP, "Reading   longitude from NVS ... ");
-    required_size = 6;
+    err = nvs_get_str(my_handle, "longitude", NULL, &required_size);
+
+    switch (err)
+    {
+    case ESP_OK:
+      ESP_LOGI(TAGHTTP, "Done\n");
+      break;
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAGHTTP, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAGHTTP, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+    
     required_summary_size += required_size;
 
-    char longitude[required_size] = "";
+    char* longitude = (char*)malloc(required_size);
+
     err = nvs_get_str(my_handle, "longitude", longitude, &required_size);
 
     switch (err)
@@ -186,6 +215,9 @@ void GET_Request()
     char query[required_summary_size];
     snprintf(query, required_summary_size, "lat=%s&lon=%s&units=metric&appid=%s", lattitude, longitude, appiid);
     ESP_LOGI(TAGHTTP, "Querry: %s\n", query);
+
+    free(longitude);
+    free(lattitude);
 
     // query[required_summary_size] = '\0';
     esp_http_client_config_t config = {
@@ -236,6 +268,8 @@ void GET_Request()
         err = nvs_set_i64(location_handle, "sunrise", sunrise);
         int64_t sunset = cJSON_GetObjectItem(city, "sunset")->valueint;
         err = nvs_set_i64(location_handle, "sunset", sunset);
+        int16_t timezone = cJSON_GetObjectItem(city, "timezone")->valueint;
+        err = nvs_set_i16(location_handle, "timezone", timezone);
       }
 
       ESP_LOGI(TAGHTTP, "Committing updates in NVS ... ");

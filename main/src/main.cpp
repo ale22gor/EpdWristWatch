@@ -165,6 +165,7 @@ void TaskUpdateData(void *parameter);
 void TaskPrintScreen(void *pvParameters);
 void GetWeatherFromNVS();
 void UpdateLocationFromNVS();
+void UpdateTimezoneFromNVS();
 
 void MenuSwitchNext();
 void FullScreenPrint();
@@ -286,6 +287,7 @@ void TaskButtonHandler(void *pvParameters)
             GET_Request();
             GetWeatherFromNVS();
             UpdateLocationFromNVS();
+            UpdateTimezoneFromNVS();
           }
 
           wifi_disconnect();
@@ -525,7 +527,7 @@ extern "C" void app_main()
   Serial.setDebugOutput(true);
 
   // Set timezone
-  setenv("TZ", "MSK-2", 1);
+  setenv("TZ", "MSK-3", 1);
   tzset();
   time_t now = time(nullptr);
   localtime_r(&now, &timeinfo);
@@ -794,3 +796,48 @@ void TaskUpdateData(void *parameter)
                            1);
   }
 }
+
+void UpdateTimezoneFromNVS(){
+  nvs_handle_t my_handle;
+  esp_err_t err = nvs_open("location", NVS_READONLY, &my_handle);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+  }
+  else
+  {
+    ESP_LOGI(TAG, "Done\n");
+
+    ESP_LOGI(TAG, "Reading timezone from NVS ... ");
+
+    int16_t timezone;
+    err = nvs_get_i16(my_handle, "timezone", &timezone);
+
+    switch (err)
+    {
+    case ESP_OK:
+    {
+    ESP_LOGI(TAG, "Done\n");
+    int8_t timezoneInHour = timezone / 3600;
+    if(timezoneInHour == 2)
+      setenv("TZ", "MSK-2", 1);
+    else if(timezoneInHour == 3)
+      setenv("TZ", "MSK-3", 1);
+    else 
+      setenv("TZ", "MSK-3", 1);
+
+    break;
+    }
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAG, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+
+    
+  }
+  nvs_close(my_handle);
+}
+

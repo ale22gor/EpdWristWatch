@@ -323,6 +323,7 @@ void TaskButtonHandler(void *pvParameters)
             GET_Request();
             GetWeatherFromNVS();
             UpdateLocationFromNVS();
+            UpdateTimezoneFromNVS();
           }
 
           wifi_disconnect();
@@ -598,6 +599,10 @@ extern "C" void app_main()
 
   vTaskDelay(100);
 
+  //Инициализация 
+  powerInit();
+
+
   GetWeatherFromNVS();
 
   FullScreenPrint();
@@ -664,10 +669,10 @@ void TaskPrintScreen(void *parameter)
       }
       else if (timeinfo.tm_min % 5 == 0)
       {
-        powerInit();
         int voltage = powerMeasure();
-        printPower(voltage, 130, 150);
-        stopPowerMeasure();
+        int percentBat = voltage > 2420 ? 100 : (voltage / 25);
+        printPower(percentBat, 130, 150);
+        //stopPowerMeasure();
         printHour(7, 0, timeinfo);
       }
       else

@@ -23,10 +23,8 @@ void printHour(uint16_t x, uint16_t y, tm timeinfo)
     } while (display.nextPage());
 }
 
-void printPower(int voltage, uint16_t x, uint16_t y)
+void printPower(int percentBat, uint16_t x, uint16_t y)
 {
-
-    int percentBat = voltage > 2420 ? 100 : (voltage / 25);
 
     display.setTextColor(GxEPD_BLACK);
     display.setTextSize(1);

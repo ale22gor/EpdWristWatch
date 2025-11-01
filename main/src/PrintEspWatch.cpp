@@ -131,7 +131,7 @@ void printWeatherIconMainScr(u16_t id)
     }
 }
 
-void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather)
+void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather, int percentBat)
 {
     display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
@@ -232,8 +232,25 @@ void initDisplayText(tm timeinfo, tm sunrise, tm sunset, weatherData weather)
     // display.print("temp");
 
     // print power
+    int xWidth;
+    if (percentBat > 95)
+        xWidth = 45;
+    else if (percentBat > 75)
+        xWidth = 35;
+    else if (percentBat > 40)
+        xWidth = 25;
+    else if (percentBat > 25)
+        xWidth = 10;
+    else
+        xWidth = 5;
+
     display.drawRect(130, 150, 50, 20, GxEPD_BLACK);
-    display.fillRect(130, 150, 45, 20, GxEPD_BLACK);
+    display.fillRect(130, 150, xWidth, 20, GxEPD_BLACK);
+
+    display.setTextSize(1);
+    display.setCursor(105, 150);
+    display.print(percentBat);
+    display.print("%");
 
     // update display
     display.display();
@@ -263,12 +280,13 @@ void displayMenu()
 
     display.setTextSize(2);
     display.setCursor(0, 5);
-    display.println("Prv + Upd Time");
+    display.println("Update Time");
 
     display.fillRect(0, 25, 150, 3, GxEPD_BLACK);
 
     display.setCursor(0, 35);
-    display.println("Update Time");
+    display.println("Prv + Upd Time");
+
 
     display.setCursor(0, 65);
     display.println("Weather Data");
@@ -300,10 +318,11 @@ void updateMenu(int menuNumber)
         display.fillScreen(GxEPD_WHITE);
 
         display.setCursor(0, 5);
-        display.println("Prv + Upd Time");
+        display.println("Update Time");
 
         display.setCursor(0, 35);
-        display.println("Update Time");
+        display.println("Prv + Upd Time");
+
 
         display.setCursor(0, 65);
         display.println("Weather Data");

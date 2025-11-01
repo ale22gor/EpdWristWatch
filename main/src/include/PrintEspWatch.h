@@ -17,7 +17,7 @@
 
 void printHour(uint16_t x, uint16_t y,tm timeinfo);
 void printPower(int voltage, uint16_t x, uint16_t y);
-void initDisplayText(tm timeinfo, tm sunrise, tm sunset,weatherData weather);
+void initDisplayText(tm timeinfo, tm sunrise, tm sunset,weatherData weather, int percentBat);
 void initDisplay();
 void hibernateDisplay();
 void displayMenu();

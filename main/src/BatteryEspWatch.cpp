@@ -17,10 +17,10 @@ void powerInit()
 
     adc_oneshot_chan_cfg_t config = {
         .atten = ADC_ATTEN_DB_12,
-        .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .bitwidth = ADC_BITWIDTH_9,
     };
     ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_6, &config));
-    adc_calibration_init(ADC_UNIT_1, ADC_CHANNEL_6, ADC_ATTEN_DB_12, &adc1_cali_handle);
+    //adc_calibration_init(ADC_UNIT_1, ADC_CHANNEL_6, ADC_ATTEN_DB_12, &adc1_cali_handle);
 
 }
 
@@ -29,9 +29,10 @@ int powerMeasure()
     int raw;
     int voltage;
     ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL_6, &raw));
-    adc_cali_raw_to_voltage(adc1_cali_handle, raw, &voltage);
+    //adc_cali_raw_to_voltage(adc1_cali_handle, raw, &voltage);
+    int percentBattery = (raw * 100 / 512);
 
-    return voltage;
+    return percentBattery;
 }
 
 void stopPowerMeasure()

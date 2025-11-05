@@ -107,11 +107,15 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base,
 esp_err_t appiid_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                    uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
-  if (inbuf)
+  const ssize_t appiid_str_size = 33 + 1;
+
+  if (inbuf && ((appiid_str_size - 1) == inlen))
   {
-    char appiid[inlen + 1] = "";
+
+    const ssize_t appiid_str_size = 33 + 1;
+    char appiid[appiid_str_size] = "";
     memcpy(appiid, inbuf, inlen);
-    appiid[inlen] = '\0';
+    appiid[appiid_str_size - 1] = '\0';
     ESP_LOGI(TAGWIFI, "Received appid data: %s", appiid);
 
     ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
@@ -157,11 +161,14 @@ esp_err_t appiid_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ss
 esp_err_t latitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                      uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
-  if (inbuf)
+  const ssize_t lattitude_str_size = 5 + 1;
+
+  if (inbuf && ((lattitude_str_size - 1) == inlen))
   {
-    char lattitude[inlen + 1] = "";
+    
+    char lattitude[lattitude_str_size] = "";
     memcpy(lattitude, inbuf, inlen);
-    lattitude[inlen] = '\0';
+    lattitude[lattitude_str_size - 1] = '\0';
     ESP_LOGI(TAGWIFI, "Received lattitude data: %s", lattitude);
 
     ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
@@ -207,11 +214,14 @@ esp_err_t latitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, 
 esp_err_t longitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                       uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
-  if (inbuf)
+const ssize_t longitude_str_size = 5 + 1;
+
+  if (inbuf  && ((longitude_str_size - 1) == inlen))
   {
-    char longitude[inlen + 1] = "";
+    const ssize_t longitude_str_size = 5 + 1;
+    char longitude[longitude_str_size] = "";
     memcpy(longitude, inbuf, inlen);
-    longitude[inlen] = '\0';
+    longitude[longitude_str_size - 1] = '\0';
     ESP_LOGI(TAGWIFI, "Received longitude data: %s", longitude);
 
     ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
@@ -229,56 +239,6 @@ esp_err_t longitude_prov_data_handler(uint32_t session_id, const uint8_t *inbuf,
       // Write
       err = nvs_set_str(my_handle, "longitude", longitude);
       // ESP_LOGE((err != ESP_OK) ? TAGWIFI, "Failed!\n" : "Done\n");
-
-      // Commit written value.
-      // After setting any values, nvs_commit() must be called to ensure changes are written
-      // to flash storage. Implementations may write to storage at other times,
-      // but this is not guaranteed.
-      ESP_LOGI(TAGWIFI, "Committing updates in NVS ... ");
-      err = nvs_commit(my_handle);
-      // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
-
-      // Close
-      nvs_close(my_handle);
-    }
-  }
-  char response[] = "SUCCESS";
-  *outbuf = (uint8_t *)strdup(response);
-  if (*outbuf == NULL)
-  {
-    ESP_LOGE(TAGWIFI, "System out of memory");
-    return ESP_ERR_NO_MEM;
-  }
-  *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
-
-  return ESP_OK;
-}
-
-esp_err_t timezone_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
-                                     uint8_t **outbuf, ssize_t *outlen, void *priv_data)
-{
-  if (inbuf)
-  {
-    char timezone[inlen + 1] = "";
-    memcpy(timezone, inbuf, inlen);
-    timezone[inlen] = '\0';
-    ESP_LOGI(TAGWIFI, "Received timezone data: %s", timezone);
-
-    ESP_LOGI(TAGWIFI, "Opening Non-Volatile Storage (NVS) handle... ");
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("settings", NVS_READWRITE, &my_handle);
-
-    if (err != ESP_OK)
-    {
-      ESP_LOGE(TAGWIFI, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-    }
-    else
-    {
-      ESP_LOGI(TAGWIFI, "Done\n");
-
-      // Write
-      err = nvs_set_str(my_handle, "timezone", timezone);
-      // ESP_LOGE((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
       // Commit written value.
       // After setting any values, nvs_commit() must be called to ensure changes are written

@@ -16,6 +16,18 @@
 
 #include "Definitions.h"
 
+
+struct tm timeinfo = {0};
+struct tm sunriseTm = {0};
+struct tm sunsetTm = {0};
+
+weatherData weatherArray[WEATHERTIMESTUMPS];
+int weatherScreenPage = 0;
+int currentweatherIndex = 0;
+
+const char *TAG = "EPDWatchMain";
+const int weatherTimestumps = 40;
+
 const char *weatherDtKey[WEATHERTIMESTUMPS]{
     "weatherDt_1",
     "weatherDt_2",
@@ -143,22 +155,8 @@ const char *weatherMainKey[WEATHERTIMESTUMPS]{
     "weatherMain_40",
 };
 
-#define PIN_MOTOR 4
-#define PIN_KEY 35
-#define PWR_EN 5
-#define Backlight 33
-#define Bat_ADC 34
 
-struct tm timeinfo = {0};
-struct tm sunriseTm = {0};
-struct tm sunsetTm = {0};
-
-weatherData weatherArray[WEATHERTIMESTUMPS];
-int weatherScreenPage = 0;
-int currentweatherIndex = 0;
-
-const char *TAG = "EPDWatchMain";
-const int weatherTimestumps = 40;
+int old_percentBat;
 
 void UpdateTimeCallback(void *parameter);
 void TaskUpdateData(void *parameter);
@@ -166,9 +164,13 @@ void TaskPrintScreen(void *pvParameters);
 void GetWeatherFromNVS();
 void UpdateLocationFromNVS();
 void UpdateTimezoneFromNVS();
+int FindWeatherIndex();
 
 void MenuSwitchNext();
 void FullScreenPrint();
+
+void WifiUpdate(bool provision);
+
 
 esp_timer_handle_t buttonTimer;
 
@@ -176,12 +178,14 @@ esp_timer_handle_t buttonTimer;
 #define MINUTE_PRINT_UPD_MAIN_SCR BIT1
 #define MENU_PRINT BIT2
 #define MENU_PRINT_NEXT BIT3
-#define PRINT_PROV_AND_UPD_SCR BIT4
-#define PRINT_UPD_SCR BIT5
+#define PRINT_UPD_SCR BIT4
+#define PRINT_PROV_AND_UPD_SCR BIT5
 #define PRINT_WEATHER_SCR BIT6
+#define PRINT_BATTERY_UPD_MAIN_SCR BIT7
 
-#define PROV_AND_UPDATE BIT1
-#define JUST_UPDATE BIT2
+
+#define JUST_UPDATE BIT1
+#define PROV_AND_UPDATE BIT2
 
 /* Stores the handle of the task that will be notified when the
    transmission is complete. */
@@ -189,12 +193,12 @@ static TaskHandle_t xTskPrintScrNotify = NULL, xTskButtonHandlerNotify = NULL, x
 
 enum menuState
 {
-  ProvAndUpdate,
   Update,
+  ProvAndUpdate,
   Weather,
   Back
 };
-menuState currMenuState = ProvAndUpdate;
+menuState currMenuState = Update;
 enum screenSTate
 {
   MainScreen,
@@ -237,7 +241,6 @@ static void IRAM_ATTR isrButtonPress(void *arg)
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-// Функция задачи светодиода
 void TaskButtonHandler(void *pvParameters)
 {
 
@@ -258,7 +261,7 @@ void TaskButtonHandler(void *pvParameters)
                       eSetValueWithoutOverwrite) == pdPASS)
       {
         currScreenState = MenuScreen;
-        currMenuState = ProvAndUpdate;
+        currMenuState = Update;
       }
     }
     else if (currScreenState == MenuScreen)
@@ -268,32 +271,14 @@ void TaskButtonHandler(void *pvParameters)
       {
         switch (currMenuState)
         {
-        case ProvAndUpdate:
+        case Update:
         {
+
           xTaskNotify(xTskPrintScrNotify,
-                      PRINT_PROV_AND_UPD_SCR,
+                      PRINT_UPD_SCR,
                       eSetValueWithoutOverwrite);
-
-          // xTaskNotify(xTskUpdateDataNotify,
-          //             PROV_AND_UPDATE,
-          //             eSetValueWithoutOverwrite);
-
-          // ulTaskNotifyTakeIndexed(1, pdTRUE,
-          //                         portMAX_DELAY);
-
-          if (wifi_update_prov_and_connect(true))
-          {
-            UpdateNtpTime();
-            GET_Request();
-            GetWeatherFromNVS();
-            UpdateLocationFromNVS();
-            UpdateTimezoneFromNVS();
-          }
-
-          wifi_disconnect();
-
-          time_t now = time(nullptr);
-          localtime_r(&now, &timeinfo);
+ 
+          WifiUpdate(false);
 
           if (xTaskNotify(xTskPrintScrNotify,
                           MAIN_SCR_PRINT,
@@ -302,33 +287,14 @@ void TaskButtonHandler(void *pvParameters)
             currScreenState = MainScreen;
           }
         }
-        break;
-        case Update:
+        break;        
+        case ProvAndUpdate:
         {
-
           xTaskNotify(xTskPrintScrNotify,
-                      PRINT_UPD_SCR,
+                      PRINT_PROV_AND_UPD_SCR,
                       eSetValueWithoutOverwrite);
 
-          // xTaskNotify(xTskUpdateDataNotify,
-          //             JUST_UPDATE,
-          //             eSetValueWithoutOverwrite);
-
-          // ulTaskNotifyTakeIndexed(1, pdTRUE,
-          //                         portMAX_DELAY);
-
-          if (wifi_update_prov_and_connect(false))
-          {
-            UpdateNtpTime();
-            GET_Request();
-            GetWeatherFromNVS();
-            UpdateLocationFromNVS();
-          }
-
-          wifi_disconnect();
-
-          time_t now = time(nullptr);
-          localtime_r(&now, &timeinfo);
+          WifiUpdate(true);
 
           if (xTaskNotify(xTskPrintScrNotify,
                           MAIN_SCR_PRINT,
@@ -408,6 +374,368 @@ void TaskButtonHandler(void *pvParameters)
     esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
   };
   vTaskDelete(NULL);
+}
+
+extern "C" void app_main()
+{
+
+  Serial.begin(115200);
+  vTaskDelay(100);
+
+  gpio_reset_pin(GPIO_NUM_5);
+  // Настраиваем вывод PWR_EN на выход без подтяжки
+  gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
+  gpio_set_pull_mode(GPIO_NUM_5, GPIO_FLOATING);
+  gpio_set_level(GPIO_NUM_5, HIGH);
+
+  vTaskDelay(250);
+  Serial.setDebugOutput(true);
+
+  // Set timezone
+  setenv("TZ", "MSK-3", 1);
+  tzset();
+  time_t now = time(nullptr);
+  localtime_r(&now, &timeinfo);
+
+  vTaskDelay(250);
+
+  ESP_LOGI(TAG, "Initialize Display");
+
+  initDisplay();
+  vTaskDelay(1000);
+  ESP_LOGI(TAG, "Initialize NVS");
+
+  // Initialize NVS
+  esp_err_t ret = nvs_flash_init();
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+  {
+    /* NVS partition was truncated
+     * and needs to be erased */
+    ESP_ERROR_CHECK(nvs_flash_erase());
+
+    /* Retry nvs_flash_init */
+    ESP_ERROR_CHECK(nvs_flash_init());
+  }
+
+  ESP_LOGI(TAG, "Initialize TCP/IP");
+
+  /* Initialize TCP/IP */
+  ESP_ERROR_CHECK(esp_netif_init());
+  ESP_LOGI(TAG, "Initialize the event loop");
+
+  /* Initialize the event loop */
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+  // ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+  wifi_setDefaults();
+
+  xTaskCreate(&TaskButtonHandler, "Task_ButtonHandler", 8192, NULL, 3, &xTskButtonHandlerNotify);
+
+  gpio_reset_pin(GPIO_NUM_35);
+  // gpio_pad_select_gpio(GPIO_NUM_35);
+  gpio_set_direction(GPIO_NUM_35, GPIO_MODE_INPUT);
+  gpio_set_pull_mode(GPIO_NUM_35, GPIO_PULLUP_ONLY);
+
+  esp_timer_create_args_t configButtonTimer = {
+      .callback = ButtonTimerCallback,
+      .arg = NULL,
+      .dispatch_method = ESP_TIMER_TASK,
+      .name = "button_Timer",
+      .skip_unhandled_events = true,
+  };
+
+  esp_timer_create(&configButtonTimer, &buttonTimer);
+
+  esp_err_t err = gpio_install_isr_service(0);
+  if (err == ESP_ERR_INVALID_STATE)
+  {
+    ESP_LOGW("ISR", "GPIO isr service already installed");
+  };
+
+  // Регистрируем обработчик прерывания на нажатие кнопки
+  gpio_isr_handler_add(GPIO_NUM_35, isrButtonPress, NULL);
+
+  // Устанавливаем тип события для генерации прерывания - по низкому уровню
+  gpio_set_intr_type(GPIO_NUM_35, GPIO_INTR_NEGEDGE);
+
+  // Разрешаем использование прерываний
+  gpio_intr_enable(GPIO_NUM_35);
+
+  vTaskDelay(100);
+
+  //Инициализация 
+    powerInit();
+
+
+  GetWeatherFromNVS();
+
+  FullScreenPrint();
+  hibernateDisplay();
+
+  esp_timer_create_args_t configMinuteClockTimer = {
+      .callback = UpdateTimeCallback,
+      .arg = NULL,
+      .dispatch_method = ESP_TIMER_TASK,
+      .name = "minute_Timer",
+      .skip_unhandled_events = true,
+  };
+
+  esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
+
+  xTaskCreate(&TaskPrintScreen, "Task_PrintScreen", 6144, NULL, 2, &xTskPrintScrNotify);
+  // xTaskCreate(&TaskUpdateData, "Task_UpdateData", 10240, NULL, 3, &xTskUpdateDataNotify);
+
+  esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
+
+  esp_sleep_enable_gpio_wakeup();
+
+  gpio_wakeup_enable(GPIO_NUM_35, GPIO_INTR_LOW_LEVEL);
+
+  esp_pm_config_t pm_config = {
+      .max_freq_mhz = 80,
+      .min_freq_mhz = 80,
+      .light_sleep_enable = true};
+  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
+  ESP_LOGI(TAG, "setup(): ready");
+}
+
+void UpdateTimeCallback(void *parameter)
+{
+  time_t now = time(nullptr);
+  localtime_r(&now, &timeinfo);
+  // xEventGroupSetBits(minute_event_group, MINUTE_UPDATE_BIT);
+  /* Notify the task that the transmission is complete. */
+
+  if ((timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0)){
+    xTaskNotify(xTskPrintScrNotify,
+              MAIN_SCR_PRINT,
+              eSetValueWithoutOverwrite);
+  }else if (timeinfo.tm_min % 5 == 0){
+    xTaskNotify(xTskPrintScrNotify,
+              PRINT_BATTERY_UPD_MAIN_SCR,
+              eSetValueWithoutOverwrite);
+  }else {
+    xTaskNotify(xTskPrintScrNotify,
+              MINUTE_PRINT_UPD_MAIN_SCR,
+              eSetValueWithoutOverwrite);
+    }
+
+}
+
+void TaskPrintScreen(void *parameter)
+{
+  uint32_t ulNotifiedValue;
+
+  while (true)
+  {
+    ESP_LOGI(TAG, "TaskPrintScreen");
+    // xEventGroupWaitBits(minute_event_group, MINUTE_UPDATE_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
+    xTaskNotifyWait(0x00,             /* Don't clear any notification bits on entry. */
+                    ULONG_MAX,        /* Reset the notification value to 0 on exit. */
+                    &ulNotifiedValue, /* Notified value pass out in
+                                         ulNotifiedValue. */
+                    portMAX_DELAY);
+
+    if (ulNotifiedValue == MINUTE_PRINT_UPD_MAIN_SCR && currScreenState == MainScreen)
+    {
+      printHour(7, 0, timeinfo);
+
+    }else if (ulNotifiedValue == PRINT_BATTERY_UPD_MAIN_SCR && currScreenState == MainScreen){
+      int new_percentBat = powerMeasure();
+      //ESP_LOGI(TAG, "Voltage: (%i)", bat);
+      if( new_percentBat != old_percentBat)
+      {
+        old_percentBat = new_percentBat;
+        printPower(old_percentBat, 130, 150);
+      }
+      printHour(7, 0, timeinfo);
+    }
+    else if (ulNotifiedValue == MAIN_SCR_PRINT)
+    {
+      FullScreenPrint();
+    }
+    else if (ulNotifiedValue == MENU_PRINT)
+    {
+      displayMenu();
+    }
+    else if (ulNotifiedValue == MENU_PRINT_NEXT && currScreenState == MenuScreen)
+    {
+      updateMenu(int(currMenuState));
+    }
+    else if (ulNotifiedValue == PRINT_UPD_SCR)
+    {
+      printUpdate();
+    }
+    else if (ulNotifiedValue == PRINT_PROV_AND_UPD_SCR)
+    {
+      printProvAndUpdate();
+    }
+    else if (ulNotifiedValue == PRINT_WEATHER_SCR)
+    {
+      printWeather(weatherArray, weatherScreenPage);
+    }
+    hibernateDisplay();
+    vTaskDelay(250);
+  }
+}
+
+void MenuSwitchNext()
+{
+  switch (currMenuState)
+  {
+  case menuState::Update:
+  {
+    currMenuState = menuState::ProvAndUpdate;
+  }
+  break;
+  case menuState::ProvAndUpdate:
+  {
+    currMenuState = menuState::Weather;
+  }
+  break;
+  case menuState::Weather:
+  {
+    currMenuState = menuState::Back;
+  }
+  break;
+  case Back:
+  {
+    currMenuState = menuState::ProvAndUpdate;
+  }
+  break;
+  default:
+    break;
+  }
+}
+
+void FullScreenPrint()
+{
+  int new_percentBat = powerMeasure();
+  //ESP_LOGI(TAG, "Voltage: (%i)", bat);
+  old_percentBat = new_percentBat;
+
+  int i = FindWeatherIndex();
+  if (i >= 0)
+  {
+    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i], new_percentBat);
+  }
+  else
+  {
+    struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = {0}};
+    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp, new_percentBat);
+  }
+}
+
+void TaskUpdateData(void *parameter)
+{
+  uint32_t ulNotifiedValue;
+
+  // ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+  wifi_setDefaults();
+
+  while (1)
+  {
+
+    xTaskNotifyWait(0x00,             /* Don't clear any notification bits on entry. */
+                    ULONG_MAX,        /* Reset the notification value to 0 on exit. */
+                    &ulNotifiedValue, /* Notified value pass out in
+                                         ulNotifiedValue. */
+                    portMAX_DELAY);
+
+    vTaskDelay(2000);
+
+    ESP_LOGI(TAG, "Update data task");
+
+    if (ulNotifiedValue == PROV_AND_UPDATE)
+    {
+      if (wifi_update_prov_and_connect(true))
+      {
+        UpdateNtpTime();
+        GET_Request();
+        GetWeatherFromNVS();
+        UpdateLocationFromNVS();
+      }
+    }
+    else if (ulNotifiedValue == JUST_UPDATE)
+    {
+      if (wifi_update_prov_and_connect(false))
+      {
+        UpdateNtpTime();
+        GET_Request();
+        GetWeatherFromNVS();
+        UpdateLocationFromNVS();
+      }
+    }
+    wifi_disconnect();
+
+    time_t now = time(nullptr);
+    localtime_r(&now, &timeinfo);
+
+    xTaskNotifyGiveIndexed(xTskButtonHandlerNotify,
+                           1);
+  }
+}
+
+void UpdateTimezoneFromNVS(){
+  nvs_handle_t my_handle;
+  esp_err_t err = nvs_open("location", NVS_READONLY, &my_handle);
+
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+  }
+  else
+  {
+    ESP_LOGI(TAG, "Done\n");
+
+    ESP_LOGI(TAG, "Reading timezone from NVS ... ");
+
+    int16_t timezone;
+    err = nvs_get_i16(my_handle, "timezone", &timezone);
+
+    switch (err)
+    {
+    case ESP_OK:
+    {
+    ESP_LOGI(TAG, "Done\n");
+    int8_t timezoneInHour = timezone / 3600;
+    if(timezoneInHour == 2)
+      setenv("TZ", "MSK-2", 1);
+    else if(timezoneInHour == 3)
+      setenv("TZ", "MSK-3", 1);
+    else 
+      setenv("TZ", "MSK-3", 1);
+
+    break;
+    }
+    case ESP_ERR_NVS_NOT_FOUND:
+      ESP_LOGI(TAG, "The value is not initialized yet!\n");
+      break;
+    default:
+      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
+    }
+
+    
+  }
+  nvs_close(my_handle);
+}
+
+void WifiUpdate(bool provision){
+
+  if (wifi_update_prov_and_connect(provision))
+  {
+      UpdateNtpTime();
+      GET_Request();
+      GetWeatherFromNVS();
+      UpdateLocationFromNVS();
+      UpdateTimezoneFromNVS();
+  }
+
+  wifi_disconnect();
+
+  time_t now = time(nullptr);
+  localtime_r(&now, &timeinfo);
+
 }
 
 void GetWeatherFromNVS()
@@ -510,334 +838,3 @@ void UpdateLocationFromNVS()
   }
   nvs_close(my_handle);
 }
-
-extern "C" void app_main()
-{
-
-  Serial.begin(115200);
-  vTaskDelay(100);
-
-  gpio_reset_pin(GPIO_NUM_5);
-  // Настраиваем вывод PWR_EN на выход без подтяжки
-  gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
-  gpio_set_pull_mode(GPIO_NUM_5, GPIO_FLOATING);
-  gpio_set_level(GPIO_NUM_5, HIGH);
-
-  vTaskDelay(250);
-  Serial.setDebugOutput(true);
-
-  // Set timezone
-  setenv("TZ", "MSK-3", 1);
-  tzset();
-  time_t now = time(nullptr);
-  localtime_r(&now, &timeinfo);
-
-  vTaskDelay(250);
-
-  ESP_LOGI(TAG, "Initialize Display");
-
-  initDisplay();
-  vTaskDelay(1000);
-  ESP_LOGI(TAG, "Initialize NVS");
-
-  // Initialize NVS
-  esp_err_t ret = nvs_flash_init();
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-  {
-    /* NVS partition was truncated
-     * and needs to be erased */
-    ESP_ERROR_CHECK(nvs_flash_erase());
-
-    /* Retry nvs_flash_init */
-    ESP_ERROR_CHECK(nvs_flash_init());
-  }
-
-  ESP_LOGI(TAG, "Initialize TCP/IP");
-
-  /* Initialize TCP/IP */
-  ESP_ERROR_CHECK(esp_netif_init());
-  ESP_LOGI(TAG, "Initialize the event loop");
-
-  /* Initialize the event loop */
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-  // ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-  wifi_setDefaults();
-
-  xTaskCreate(&TaskButtonHandler, "Task_ButtonHandler", 8192, NULL, 3, &xTskButtonHandlerNotify);
-
-  gpio_reset_pin(GPIO_NUM_35);
-  // gpio_pad_select_gpio(GPIO_NUM_35);
-  gpio_set_direction(GPIO_NUM_35, GPIO_MODE_INPUT);
-  gpio_set_pull_mode(GPIO_NUM_35, GPIO_PULLUP_ONLY);
-
-  esp_timer_create_args_t configButtonTimer = {
-      .callback = ButtonTimerCallback,
-      .arg = NULL,
-      .dispatch_method = ESP_TIMER_TASK,
-      .name = "button_Timer",
-      .skip_unhandled_events = true,
-  };
-
-  esp_timer_create(&configButtonTimer, &buttonTimer);
-
-  esp_err_t err = gpio_install_isr_service(0);
-  if (err == ESP_ERR_INVALID_STATE)
-  {
-    ESP_LOGW("ISR", "GPIO isr service already installed");
-  };
-
-  // Регистрируем обработчик прерывания на нажатие кнопки
-  gpio_isr_handler_add(GPIO_NUM_35, isrButtonPress, NULL);
-
-  // Устанавливаем тип события для генерации прерывания - по низкому уровню
-  gpio_set_intr_type(GPIO_NUM_35, GPIO_INTR_NEGEDGE);
-
-  // Разрешаем использование прерываний
-  gpio_intr_enable(GPIO_NUM_35);
-
-  vTaskDelay(100);
-
-  GetWeatherFromNVS();
-
-  FullScreenPrint();
-  hibernateDisplay();
-
-  esp_timer_create_args_t configMinuteClockTimer = {
-      .callback = UpdateTimeCallback,
-      .arg = NULL,
-      .dispatch_method = ESP_TIMER_TASK,
-      .name = "minute_Timer",
-      .skip_unhandled_events = true,
-  };
-
-  esp_timer_create(&configMinuteClockTimer, &minuteClockTimer);
-
-  xTaskCreate(&TaskPrintScreen, "Task_PrintScreen", 6144, NULL, 2, &xTskPrintScrNotify);
-  // xTaskCreate(&TaskUpdateData, "Task_UpdateData", 10240, NULL, 3, &xTskUpdateDataNotify);
-
-  esp_timer_start_periodic(minuteClockTimer, 60 * 1000 * 1000);
-
-  esp_sleep_enable_gpio_wakeup();
-
-  gpio_wakeup_enable(GPIO_NUM_35, GPIO_INTR_LOW_LEVEL);
-
-  esp_pm_config_t pm_config = {
-      .max_freq_mhz = 160,
-      .min_freq_mhz = 80,
-      .light_sleep_enable = true};
-  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
-  ESP_LOGI(TAG, "setup(): ready");
-}
-
-void UpdateTimeCallback(void *parameter)
-{
-  time_t now = time(nullptr);
-  localtime_r(&now, &timeinfo);
-  // xEventGroupSetBits(minute_event_group, MINUTE_UPDATE_BIT);
-  /* Notify the task that the transmission is complete. */
-  xTaskNotify(xTskPrintScrNotify,
-              MINUTE_PRINT_UPD_MAIN_SCR,
-              eSetValueWithoutOverwrite);
-}
-
-void TaskPrintScreen(void *parameter)
-{
-  uint32_t ulNotifiedValue;
-
-  while (true)
-  {
-    ESP_LOGI(TAG, "TaskPrintScreen");
-    // xEventGroupWaitBits(minute_event_group, MINUTE_UPDATE_BIT, pdTRUE, pdTRUE, portMAX_DELAY);
-    xTaskNotifyWait(0x00,             /* Don't clear any notification bits on entry. */
-                    ULONG_MAX,        /* Reset the notification value to 0 on exit. */
-                    &ulNotifiedValue, /* Notified value pass out in
-                                         ulNotifiedValue. */
-                    portMAX_DELAY);
-
-    if (ulNotifiedValue == MINUTE_PRINT_UPD_MAIN_SCR && currScreenState == MainScreen)
-    {
-
-      if ((timeinfo.tm_hour % 3 == 0 && timeinfo.tm_min == 0) || (timeinfo.tm_hour == 0 && timeinfo.tm_min == 0))
-      {
-        FullScreenPrint();
-      }
-      else if (timeinfo.tm_min % 5 == 0)
-      {
-        powerInit();
-        int voltage = powerMeasure();
-        printPower(voltage, 130, 150);
-        stopPowerMeasure();
-        printHour(7, 0, timeinfo);
-      }
-      else
-      {
-        printHour(7, 0, timeinfo);
-      }
-    }
-    else if (ulNotifiedValue == MAIN_SCR_PRINT)
-    {
-      FullScreenPrint();
-    }
-    else if (ulNotifiedValue == MENU_PRINT)
-    {
-      displayMenu();
-    }
-    else if (ulNotifiedValue == MENU_PRINT_NEXT && currScreenState == MenuScreen)
-    {
-      updateMenu(int(currMenuState));
-    }
-    else if (ulNotifiedValue == PRINT_PROV_AND_UPD_SCR)
-    {
-      printProvAndUpdate();
-    }
-    else if (ulNotifiedValue == PRINT_UPD_SCR)
-    {
-      printUpdate();
-    }
-    else if (ulNotifiedValue == PRINT_WEATHER_SCR)
-    {
-      printWeather(weatherArray, weatherScreenPage);
-    }
-    hibernateDisplay();
-    vTaskDelay(250);
-  }
-}
-
-void MenuSwitchNext()
-{
-  switch (currMenuState)
-  {
-  case menuState::ProvAndUpdate:
-  {
-    currMenuState = menuState::Update;
-  }
-  break;
-  case menuState::Update:
-  {
-    currMenuState = menuState::Weather;
-  }
-  break;
-  case menuState::Weather:
-  {
-    currMenuState = menuState::Back;
-  }
-  break;
-  case Back:
-  {
-    currMenuState = menuState::ProvAndUpdate;
-  }
-  break;
-  default:
-    break;
-  }
-}
-
-void FullScreenPrint()
-{
-  int i = FindWeatherIndex();
-  if (i >= 0)
-  {
-    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherArray[i]);
-  }
-  else
-  {
-    struct weatherData weatherTmp = {.weather = 0, .temp = 0, .time = 0};
-    initDisplayText(timeinfo, sunriseTm, sunsetTm, weatherTmp);
-  }
-}
-
-void TaskUpdateData(void *parameter)
-{
-  uint32_t ulNotifiedValue;
-
-  // ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-  wifi_setDefaults();
-
-  while (1)
-  {
-
-    xTaskNotifyWait(0x00,             /* Don't clear any notification bits on entry. */
-                    ULONG_MAX,        /* Reset the notification value to 0 on exit. */
-                    &ulNotifiedValue, /* Notified value pass out in
-                                         ulNotifiedValue. */
-                    portMAX_DELAY);
-
-    vTaskDelay(2000);
-
-    ESP_LOGI(TAG, "Update data task");
-
-    if (ulNotifiedValue == PROV_AND_UPDATE)
-    {
-      if (wifi_update_prov_and_connect(true))
-      {
-        UpdateNtpTime();
-        GET_Request();
-        GetWeatherFromNVS();
-        UpdateLocationFromNVS();
-      }
-    }
-    else if (ulNotifiedValue == JUST_UPDATE)
-    {
-      if (wifi_update_prov_and_connect(false))
-      {
-        UpdateNtpTime();
-        GET_Request();
-        GetWeatherFromNVS();
-        UpdateLocationFromNVS();
-      }
-    }
-    wifi_disconnect();
-
-    time_t now = time(nullptr);
-    localtime_r(&now, &timeinfo);
-
-    xTaskNotifyGiveIndexed(xTskButtonHandlerNotify,
-                           1);
-  }
-}
-
-void UpdateTimezoneFromNVS(){
-  nvs_handle_t my_handle;
-  esp_err_t err = nvs_open("location", NVS_READONLY, &my_handle);
-
-  if (err != ESP_OK)
-  {
-    ESP_LOGE(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-  }
-  else
-  {
-    ESP_LOGI(TAG, "Done\n");
-
-    ESP_LOGI(TAG, "Reading timezone from NVS ... ");
-
-    int16_t timezone;
-    err = nvs_get_i16(my_handle, "timezone", &timezone);
-
-    switch (err)
-    {
-    case ESP_OK:
-    {
-    ESP_LOGI(TAG, "Done\n");
-    int8_t timezoneInHour = timezone / 3600;
-    if(timezoneInHour == 2)
-      setenv("TZ", "MSK-2", 1);
-    else if(timezoneInHour == 3)
-      setenv("TZ", "MSK-3", 1);
-    else 
-      setenv("TZ", "MSK-3", 1);
-
-    break;
-    }
-    case ESP_ERR_NVS_NOT_FOUND:
-      ESP_LOGI(TAG, "The value is not initialized yet!\n");
-      break;
-    default:
-      ESP_LOGE(TAG, "Error (%s) reading!\n", esp_err_to_name(err));
-    }
-
-    
-  }
-  nvs_close(my_handle);
-}
-
